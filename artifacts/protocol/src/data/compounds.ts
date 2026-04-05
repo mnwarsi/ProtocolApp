@@ -44,7 +44,7 @@ export const COMPOUNDS: Compound[] = [
     defaultDose: 250,
     defaultDoseUnit: "mcg",
     commonFrequencies: ["daily", "twice_daily"],
-    notes: "Store lyophilized at 2-8°C. Reconstituted: refrigerate, use within 30 days.",
+    notes: "Store lyophilized at 2–8°C. Reconstituted: refrigerate, use within 30 days.",
   },
   {
     id: "tb-500",
@@ -56,7 +56,7 @@ export const COMPOUNDS: Compound[] = [
     defaultDose: 2,
     defaultDoseUnit: "mg",
     commonFrequencies: ["twice_daily", "eod", "weekly"],
-    notes: "Longer half-life allows less frequent dosing. Store refrigerated post-reconstitution.",
+    notes: "Half-life ~96h. Store refrigerated post-reconstitution.",
   },
   {
     id: "semaglutide",
@@ -68,7 +68,7 @@ export const COMPOUNDS: Compound[] = [
     defaultDose: 0.25,
     defaultDoseUnit: "mg",
     commonFrequencies: ["weekly"],
-    notes: "Long half-life — weekly subcutaneous administration is typical.",
+    notes: "Half-life ~168h. Subcutaneous administration. Store refrigerated.",
   },
   {
     id: "cjc-1295",
@@ -80,7 +80,7 @@ export const COMPOUNDS: Compound[] = [
     defaultDose: 1,
     defaultDoseUnit: "mg",
     commonFrequencies: ["weekly", "eod"],
-    notes: "DAC form has extended half-life. Often combined with GHRP compounds.",
+    notes: "DAC form. Half-life ~192h. Store refrigerated post-reconstitution.",
   },
   {
     id: "ipamorelin",
@@ -92,7 +92,7 @@ export const COMPOUNDS: Compound[] = [
     defaultDose: 200,
     defaultDoseUnit: "mcg",
     commonFrequencies: ["daily", "twice_daily"],
-    notes: "Short half-life. Often used before bed or post-workout. Stack with CJC-1295.",
+    notes: "Half-life ~2h. Store lyophilized at 2–8°C.",
   },
   {
     id: "pt-141",
@@ -104,7 +104,7 @@ export const COMPOUNDS: Compound[] = [
     defaultDose: 1,
     defaultDoseUnit: "mg",
     commonFrequencies: ["custom"],
-    notes: "Typically used on an as-needed basis, 45–120 min before intended effect.",
+    notes: "Half-life ~12h. As-needed administration. Store refrigerated.",
   },
 ];
 
