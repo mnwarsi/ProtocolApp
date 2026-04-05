@@ -574,7 +574,7 @@ export default function ProtocolPanel() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => {
-              if (tier !== "pro" && protocols.length >= 1) {
+              if (tier !== "pro" && activeProtocols.length >= 1) {
                 setShowUpgrade(true);
                 return;
               }

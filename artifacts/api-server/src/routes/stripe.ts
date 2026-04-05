@@ -30,7 +30,7 @@ router.post("/subscription/checkout", requireAuth, async (req, res) => {
   }
 
   const userId = (req as AuthedRequest).userId;
-  const { priceId: clientPriceId, email } = req.body as { priceId?: string; email?: string };
+  const { email } = req.body as { email?: string };
 
   try {
     const stripe = await getUncachableStripeClient();
@@ -39,21 +39,19 @@ router.post("/subscription/checkout", requireAuth, async (req, res) => {
       return;
     }
 
-    // Resolve priceId: use client-supplied value or look up the Protocol Pro price
-    let resolvedPriceId = clientPriceId;
-    if (!resolvedPriceId) {
-      const products = await stripe.products.search({
-        query: "name:'Protocol Pro' AND active:'true'",
+    // Always resolve priceId server-side from the Protocol Pro product — client cannot supply a price.
+    const products = await stripe.products.search({
+      query: "name:'Protocol Pro' AND active:'true'",
+    });
+    let resolvedPriceId: string | undefined;
+    if (products.data.length > 0) {
+      const prices = await stripe.prices.list({
+        product: products.data[0].id,
+        active: true,
+        limit: 1,
       });
-      if (products.data.length > 0) {
-        const prices = await stripe.prices.list({
-          product: products.data[0].id,
-          active: true,
-          limit: 1,
-        });
-        if (prices.data.length > 0) {
-          resolvedPriceId = prices.data[0].id;
-        }
+      if (prices.data.length > 0) {
+        resolvedPriceId = prices.data[0].id;
       }
     }
     if (!resolvedPriceId) {

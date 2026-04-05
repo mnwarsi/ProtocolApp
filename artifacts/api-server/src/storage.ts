@@ -37,11 +37,17 @@ export class Storage {
       const user = await this.getUser(userId);
       if (!user?.stripeCustomerId) return "free";
 
+      // Validate subscription is specifically for the Protocol Pro product.
+      // Joins subscription_items → prices → products to prevent tier bypass via other subscriptions.
       const result = await db.execute(sql`
-        SELECT s.status FROM stripe.subscriptions s
+        SELECT s.id FROM stripe.subscriptions s
+        JOIN stripe.subscription_items si ON si.subscription = s.id
+        JOIN stripe.prices pr ON pr.id = si.price
+        JOIN stripe.products prod ON prod.id = pr.product
         WHERE s.customer = ${user.stripeCustomerId}
           AND s.status IN ('active', 'trialing')
-        ORDER BY s.created DESC
+          AND prod.name = 'Protocol Pro'
+          AND prod.active = true
         LIMIT 1
       `);
 
