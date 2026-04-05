@@ -94,7 +94,12 @@ export const useProtocolStore = create<ProtocolStore>()(
       },
 
       setDoseUnit: (unit) => {
-        set({ targetDoseUnit: unit });
+        const { targetDose, targetDoseUnit } = get();
+        let convertedDose = targetDose;
+        if (unit !== targetDoseUnit) {
+          convertedDose = unit === "mg" ? targetDose / 1000 : targetDose * 1000;
+        }
+        set({ targetDoseUnit: unit, targetDose: convertedDose });
         get().recalculate();
       },
 
