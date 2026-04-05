@@ -1,0 +1,553 @@
+This is **good**, but still too fat for a true fast MVP.
+
+You have the right product shape. The mistake is that Stages 1–2 still contain too many “nice because impressive” things mixed into the “must exist” path.
+
+## Overall judgment
+
+**Current plan quality:** **7.5/10**
+**Product direction:** **8.5/10**
+**MVP discipline:** **6/10**
+
+The main issue:
+
+You are still building **an impressive v1**, not **the smallest dangerous wedge**.
+
+For a real MVP, the question is:
+
+**What is the minimum product that makes someone say: “holy shit, this is way better than my notes app / spreadsheet / PepCalc”?**
+
+That is not the full dashboard.
+It is:
+
+1. **beautiful calculator**
+2. **log dose in one tap**
+3. **see recent doses + next due**
+4. **basic cycle / washout awareness**
+
+That alone is already compelling.
+
+---
+
+# What to cut or defer from Stage 1–2
+
+## Cut from immediate MVP
+
+These are good features, but they are not first-week features:
+
+### 1. Multi-page architecture
+
+For MVP, do **one shell, three panels**:
+
+* Calculator
+* Log
+* Cycle
+
+Not a big routed app unless needed.
+
+### 2. Framer-heavy animation everywhere
+
+Keep only:
+
+* syringe fill animation
+* subtle card transitions
+
+Do not spend time animating dashboards.
+
+### 3. Complex cycle canvas
+
+A true timeline/Gantt is not needed first.
+For MVP, replace with:
+
+* active compounds list
+* next dose time
+* estimated washout date
+* simple horizontal progress bars
+
+That gives 80% of the value for 20% of the work.
+
+### 4. Full client-side encrypted structured system
+
+You do want privacy, yes.
+But don’t let cryptography architecture become your procrastination sink.
+
+For MVP:
+
+* derive one local key from a user passphrase or device-generated key
+* encrypt the log blob as one bundle
+* decrypt on app load
+* re-encrypt on mutation
+
+Do **not** over-engineer record-level encryption yet.
+
+### 5. Service worker complexity
+
+Installability matters. Offline perfection does not.
+Use the simplest reliable PWA setup possible.
+
+---
+
+# What should be the actual Stage 1
+
+## Stage 1: “Holy shit this is better”
+
+Build only this:
+
+### A. Calculator card
+
+* compound preset dropdown
+* vial size
+* water volume
+* target dose
+* units result
+* concentration result
+* toggle mcg / mg
+* U-100 display
+
+### B. Interactive syringe
+
+* SVG syringe
+* fill reflects units
+* draggable or slider-based input optional
+* tick-to-dose feel
+
+### C. Log dose
+
+* one button
+* logs:
+
+  * timestamp
+  * compound
+  * dose
+  * units
+  * concentration
+
+### D. Recent log list
+
+* last 10 entries
+* grouped by compound
+* delete/edit latest
+
+### E. Active protocol summary
+
+* active compounds
+* frequency text
+* next due
+* washout countdown
+
+That is the MVP.
+
+If you ship that well, it already has legs.
+
+---
+
+# Revised staging
+
+## Stage 1 — Calculator Wedge
+
+Goal: best-looking peptide calculator online
+
+Include:
+
+* React/Vite PWA
+* Tailwind dark theme
+* compound presets
+* calculator engine
+* syringe UI
+* log dose
+* recent log history
+* local persistence
+* installable PWA
+
+Do **not** include yet:
+
+* encryption
+* cycle timeline
+* half-life graphs
+* body map
+* wearable sync
+* backend
+* auth
+* Stripe
+
+Why: this gets you to demoable, shareable, testable fastest.
+
+---
+
+## Stage 2 — Privacy + Protocol Layer
+
+Once Stage 1 works and looks excellent, add:
+
+* encrypted local storage
+* active cycles
+* simple next-dose scheduler
+* washout calculation
+* inventory countdown
+* export JSON/CSV locally
+
+This is where it becomes a true protocol manager.
+
+Important:
+**Inventory countdown is more MVP-relevant than a fancy cycle canvas.**
+It solves a real pain point fast.
+
+---
+
+## Stage 3 — Biofeedback
+
+Then add:
+
+* wearable integration
+* symptom logging
+* correlation charts
+
+This is correct as the premium moat.
+
+But keep the first biofeedback version extremely simple:
+
+* dose events as markers
+* one wearable metric at a time
+* 7d / 30d overlays
+* plain-language trend summary
+
+Do not try to build causal inference early.
+
+---
+
+## Stage 4 — Monetisation
+
+Only after retention signal:
+
+* auth
+* paywall
+* Stripe
+* cloud sync
+
+Correct order.
+
+---
+
+# Specific critiques of your current task list
+
+## 1. “Build OpenAPI spec and run codegen”
+
+For Stages 1–2, this is mostly ceremony.
+
+You said:
+
+> no backend is needed for Stage 1-2 since all data is client-side
+
+Good. Then act like it.
+
+For MVP:
+
+* either omit OpenAPI entirely
+* or keep a placeholder spec, but do not spend real time on it
+
+This is not value-producing right now.
+
+**Recommendation:** cut from immediate work.
+
+---
+
+## 2. Zustand store scope is slightly too broad
+
+Your store should be split mentally into three slices:
+
+* `calculator`
+* `logs`
+* `protocol`
+
+Do not create a giant god-store.
+
+Even if it lives in one file initially, keep state shape clean.
+
+---
+
+## 3. “Delegate to DESIGN subagent”
+
+The impulse is right, but the design brief needs more discipline.
+
+Right now the risk is style-over-speed.
+
+You need a design constraint like this:
+
+> One-screen app. No nested complexity. Dense, premium, tactile. Every interaction under one second. No decorative clutter. Strong.app discipline, medical stealth skin.
+
+That is a much better brief than “build all pages/components”.
+
+---
+
+## 4. Cycle Canvas is over-scoped
+
+You do not need a timeline canvas first.
+You need protocol intelligence, not a chart.
+
+Replace initial Cycle Canvas with:
+
+* Active now
+* Next dose in X
+* Estimated cleared by DATE
+* Days remaining in vial
+
+That is much more MVP.
+
+---
+
+## 5. Compound presets need legal/product discipline
+
+Your phrasing here is good:
+
+> app shouldn't suggest; user activates from a research list
+
+Keep that logic everywhere.
+
+I would also avoid too much “guide” language in the preset objects.
+Instead of:
+
+* reconstitution guide
+
+Use:
+
+* common vial sizes
+* common water volumes
+* notes
+
+Subtle but useful.
+
+---
+
+## 6. Crypto implementation needs simplification
+
+Do not build this as if you are Signal.
+
+For MVP:
+
+* one master encrypted payload in localStorage
+* AES-GCM
+* key derived from passphrase via PBKDF2 or device-local stored key
+* lock/unlock session
+
+That is enough to support the privacy story without drowning.
+
+---
+
+# What I would add
+
+## 1. Frequency templates
+
+This is extremely useful and easy.
+
+Per compound:
+
+* daily
+* twice daily
+* every other day
+* weekly
+* custom interval
+
+Then show:
+
+* next due
+* overdue flag
+
+Huge value, low complexity.
+
+---
+
+## 2. Concentration display
+
+Always show:
+
+* `mcg per unit`
+* `mg per mL`
+* `units for target dose`
+
+This is core product value. Make it impossible to misunderstand.
+
+---
+
+## 3. “Saved protocol” templates
+
+Even in MVP-lite:
+
+* save current setup as protocol
+* reload it later
+
+This is much more valuable than fancy visuals.
+
+---
+
+## 4. Error prevention
+
+Very important.
+
+Add guardrails:
+
+* impossible values blocked
+* huge doses flagged
+* unit confusion warnings
+* explicit labels for mg vs mcg
+* exact formula shown optionally
+
+Trust comes from clarity.
+
+---
+
+## 5. Inventory from day one or early Stage 2
+
+This is one of your best practical features.
+It is simple and sticky.
+
+You know:
+
+* vial total
+* dose size
+* frequency
+
+So calculate:
+
+* doses left
+* days left
+* estimated depletion date
+
+Very useful.
+
+---
+
+# The real MVP build order
+
+If I were running this, I would do it in this exact order:
+
+## Build order
+
+1. **Visual design system**
+
+   * dark theme
+   * cards
+   * typography
+   * accent language
+
+2. **Math engine**
+
+   * reconstitution
+   * unit conversions
+   * half-life / washout helpers
+   * frequency helpers
+
+3. **Calculator UI**
+
+   * presets
+   * editable inputs
+   * result card
+
+4. **Syringe SVG**
+
+   * fill state
+   * tick visualization
+
+5. **Log dose**
+
+   * persist locally
+   * recent history
+
+6. **Protocol summary**
+
+   * next due
+   * washout
+   * inventory
+
+7. **Encryption**
+
+   * app lock
+   * encrypted blob
+
+8. **PWA installability**
+
+Only after this:
+9. **Wearables**
+10. **Monetisation**
+
+---
+
+# The simplified product roadmap I’d recommend
+
+## Phase 1: 5-day MVP
+
+* calculator
+* syringe UI
+* presets
+* dose logger
+* recent logs
+* protocol summary
+* installable PWA
+
+## Phase 2: 7-day improvement
+
+* encryption
+* saved protocols
+* inventory countdown
+* better washout math
+* export
+
+## Phase 3: premium thesis
+
+* symptom logging
+* wearable sync
+* chart overlays
+
+## Phase 4: monetisation
+
+* auth
+* Stripe
+* feature gating
+* cloud sync
+
+---
+
+# Hard recommendation
+
+## Keep
+
+* calculator
+* syringe
+* presets
+* log history
+* washout
+* local-first
+* PWA
+
+## Delay
+
+* OpenAPI/codegen ceremony
+* fancy cycle Gantt
+* complex crypto model
+* body map
+* backend before it’s needed
+* Stripe before retention
+
+---
+
+# Final verdict
+
+This is a **strong concept** and the plan is headed in the right direction, but it needs to become more ruthless.
+
+Your MVP should not be:
+
+**“a complete stealth biohacker operating system.”**
+
+It should be:
+
+**“the most beautiful and trustworthy protocol calculator/logger on the internet.”**
+
+That is the wedge.
+
+Once people are using it weekly, then you add:
+
+* privacy hardening
+* inventory
+* biofeedback
+* monetisation
+
+That sequence is right.
+
+I can turn your current Stage 1–2 spec into a much tighter **builder-ready MVP brief** next.

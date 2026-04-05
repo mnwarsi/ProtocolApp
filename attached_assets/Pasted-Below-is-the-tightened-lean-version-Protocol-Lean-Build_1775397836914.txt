@@ -1,0 +1,724 @@
+Below is the tightened, lean version.
+
+---
+
+# Protocol — Lean Build Plan
+
+## Top-Level TODO
+
+### Stage 1 — Wedge MVP
+
+* Build premium dark-mode PWA shell
+* Ship reconstitution calculator
+* Ship interactive syringe UI
+* Add local compound presets
+* Add one-tap dose logging
+* Show recent log history
+* Persist locally
+* Make installable as PWA
+
+### Stage 2 — Protocol Layer
+
+* Add simple client-side encryption
+* Add active protocol summary
+* Add next-dose countdown
+* Add washout countdown/date
+* Add inventory countdown
+* Add saved protocol templates
+* Add CSV/JSON export
+
+### Stage 3 — Bio-Feedback
+
+* Add one wearable integration path
+* Add OAuth connect flow
+* Pull recovery / HRV / RHR / sleep data
+* Overlay dose events on chart
+* Add symptom logging
+* Add injection site heatmap
+
+### Stage 4 — Monetisation
+
+* Add auth
+* Add Stripe subscription
+* Enforce free/pro limits
+* Unlock wearable sync / unlimited compounds / export
+* Add cloud sync
+
+---
+
+# Protocol — Stage 1 & 2
+
+## What & Why
+
+Build the first real version of Protocol: a premium, local-first PWA for people managing research compound protocols.
+
+The goal is not to build the full operating system at once. The goal is to ship the smallest product that is:
+
+* beautiful
+* trustworthy
+* sticky
+* obviously better than spreadsheets, notes, and clunky calculators
+
+Stages 1 and 2 should produce a fast, installable app with three core jobs:
+
+1. calculate dose precisely
+2. log it instantly
+3. tell the user what is active, due next, and running low
+
+---
+
+## Lean Product Principle
+
+Do not overbuild.
+
+The first shipped version should feel like:
+
+* **the best-looking reconstitution calculator on the internet**
+* plus **a simple protocol tracker**
+* plus **light privacy**
+
+Not:
+
+* a complete biohacker platform
+* a multi-page monster
+* a backend-heavy architecture exercise
+
+---
+
+## Done Looks Like
+
+### Core UX
+
+* React + Vite PWA at `/`
+* Premium “Cyber-Medical Stealth” visual system
+
+  * background: `#0a0a0a`
+  * accent: `#00f2ff`
+  * surface: `#1a1a1a`
+
+### Calculator
+
+* User selects compound preset:
+
+  * BPC-157
+  * TB-500
+  * Semaglutide
+  * CJC-1295
+  * Ipamorelin
+  * PT-141
+* User enters:
+
+  * vial size
+  * water volume
+  * target dosage
+* App outputs:
+
+  * concentration
+  * exact syringe units on U-100 scale
+  * mcg/unit and mg/mL display
+* User can toggle mg / mcg safely and clearly
+
+### Syringe UI
+
+* Interactive SVG syringe
+* Fill amount reflects calculated units
+* Smooth but restrained animation
+* Tactile, legible, not gimmicky
+
+### Logging
+
+* “Log Dose” button stores:
+
+  * timestamp
+  * compound
+  * target dose
+  * units
+  * concentration
+* Recent log history is visible immediately
+* Local persistence works without account
+
+### Protocol Layer
+
+* Active compounds summary
+* Frequency per compound
+* Next due time
+* Estimated washout date
+* Inventory countdown:
+
+  * doses remaining
+  * days remaining
+  * depletion date
+
+### Privacy
+
+* Logs/settings stored locally
+* Stage 2 encryption via Web Crypto API
+* Simple session unlock model
+
+### PWA
+
+* Installable to home screen
+* Manifest configured
+* Basic offline shell works
+
+---
+
+## Out of Scope
+
+* backend/database
+* user auth
+* wearable integrations
+* Stripe/paywall
+* multi-device sync
+* causal analysis
+* complex cycle Gantt chart
+* full body map
+* medical recommendations
+* protocol suggestions
+
+---
+
+## Key Product Decisions
+
+### 1. No backend in Stages 1–2
+
+Everything is local-first.
+
+That means:
+
+* no API work
+* no OpenAPI/codegen
+* no session layer
+* no auth
+
+This is deliberate. It keeps build speed high.
+
+### 2. No full “Cycle Canvas” yet
+
+Replace the fancy timeline with a lean protocol summary:
+
+* Active now
+* Next due
+* Clears by
+* Running low in X days
+
+This solves the real problem faster.
+
+### 3. Encryption stays simple
+
+Use one encrypted local payload or a very small number of payloads.
+
+Do not build row-level encrypted architecture yet.
+
+### 4. One-screen-first layout
+
+Prefer a dense, premium single-screen shell with sections:
+
+* Calculator
+* Syringe / outputs
+* Log
+* Protocol summary
+
+Tabs are fine. Complex routing is not necessary.
+
+---
+
+## Stage 1 — Wedge MVP
+
+### TODO
+
+* Set up React + Vite app
+* Add Tailwind styling
+* Build dark design system
+* Add compound preset data
+* Build math engine
+* Build calculator UI
+* Build syringe SVG
+* Add local persistence
+* Add dose logger
+* Add recent log list
+* Configure manifest and installability
+
+### What to Build
+
+#### App Shell
+
+* Single responsive shell
+* Mobile-first
+* Tabbed or stacked layout
+* Fast load, minimal chrome
+
+#### Design System
+
+* Typography: crisp, dense, high-contrast
+* Cards with subtle glow/accent
+* Inputs that feel technical and premium
+* No decorative clutter
+
+#### Calculator Engine
+
+Create `src/lib/mathEngine.ts` with:
+
+* reconstitution calculation
+* unit conversion helpers
+* concentration helpers
+* frequency helpers
+* half-life helper functions
+
+Include:
+
+* exact units for U-100 syringe
+* `mcg per unit`
+* `mg per mL`
+* basic validation
+
+#### Compound Presets
+
+Create `src/data/compounds.ts` with local typed data:
+
+* name
+* common vial sizes
+* common water volumes
+* half-life in hours
+* default dose reference
+* common frequency reference
+* short notes
+
+Use neutral phrasing. Do not present them as advice.
+
+#### Dose Logging
+
+Create local logging with:
+
+* `id`
+* `compound`
+* `dose`
+* `doseUnit`
+* `units`
+* `concentration`
+* `timestamp`
+
+Persist unencrypted in Stage 1 if necessary to move fast.
+
+#### Recent Log View
+
+Show:
+
+* recent entries
+* grouped or filterable by compound
+* delete latest entry
+* lightweight edit support optional
+
+#### PWA Setup
+
+* manifest
+* theme color
+* standalone mode
+* basic service worker for shell caching
+* install prompt support later if needed
+
+---
+
+## Stage 2 — Protocol Layer
+
+### TODO
+
+* Add client-side encryption
+* Add active protocol objects
+* Add next-dose logic
+* Add washout logic
+* Add inventory logic
+* Add saved protocols
+* Add export
+
+### What to Build
+
+#### Client-Side Encryption
+
+Create `src/lib/crypto.ts` with:
+
+* AES-GCM encryption/decryption
+* passphrase-derived key or local device key
+* simple unlock flow on app open
+* encrypt/decrypt logs + settings
+
+Keep it simple:
+
+* one master payload or a few grouped payloads
+* re-encrypt on mutation
+
+#### Zustand Store
+
+Create `src/store/protocolStore.ts` with slices for:
+
+* calculator
+* logs
+* protocol
+* app settings / lock state
+
+Avoid a giant undifferentiated store.
+
+#### Active Protocols
+
+Add a lean protocol model:
+
+* compound
+* dose
+* unit
+* frequency
+* start date
+* optional end date
+* vial amount
+* water amount
+
+This powers:
+
+* next due
+* washout
+* inventory
+
+#### Next-Dose Countdown
+
+Support simple templates:
+
+* daily
+* twice daily
+* every other day
+* weekly
+* custom hours
+
+Show:
+
+* due in X
+* overdue flag
+* last logged
+
+#### Washout Logic
+
+Based on half-life:
+
+* estimate time to near-clearance
+* show countdown/date
+* simple visual progress bar
+
+No complicated pharmacokinetic modelling yet.
+
+#### Inventory Countdown
+
+Calculate:
+
+* units per dose
+* doses remaining
+* days remaining
+* estimated depletion date
+
+This is high-value and should be in Stage 2.
+
+#### Saved Protocol Templates
+
+Allow:
+
+* save current protocol
+* reload later
+* duplicate
+* delete
+
+Small feature, high utility.
+
+#### Export
+
+Add local export:
+
+* CSV
+* JSON
+
+This should exist before paid plans, even if basic.
+
+---
+
+## Files to Create or Edit
+
+### Create
+
+* `src/lib/mathEngine.ts`
+* `src/lib/crypto.ts`
+* `src/data/compounds.ts`
+* `src/store/protocolStore.ts`
+* calculator / syringe / protocol / log components
+* PWA manifest/service worker files
+
+### Do Not Touch Yet
+
+* `lib/api-spec/openapi.yaml`
+* `artifacts/api-server/src/app.ts`
+* `artifacts/api-server/src/routes/index.ts`
+* backend/db/auth files
+
+These are not needed yet.
+
+---
+
+# Protocol — Stage 3: Wearable Integration & Bio-Feedback
+
+## TODO
+
+* Pick one integration path
+* Add connect flow
+* Pull wearable data
+* Build one biofeedback chart
+* Overlay dose events
+* Add symptom logging
+* Add body-map rotation tracker
+
+## What & Why
+
+Once the core app is sticky, add the feature that justifies premium pricing:
+
+* dose timing over wearable metrics
+
+This stage should answer:
+
+* what changed after starting a protocol?
+* what happened around dose timing?
+* how did recovery / sleep / RHR move?
+
+---
+
+## Product Principle
+
+Do not try to “prove efficacy.”
+
+Just show:
+
+* timing
+* trends
+* observed associations
+
+Keep claims restrained.
+
+---
+
+## Done Looks Like
+
+* User connects one wearable source
+* One chart page displays:
+
+  * HRV
+  * recovery score
+  * resting heart rate
+  * sleep duration/quality
+* Dose log events appear as markers on the timeline
+* User can add daily symptom/vibe check entries
+* Injection sites can be logged via simple SVG body map
+
+---
+
+## Lean Decisions
+
+### 1. Pick one integration path
+
+Do not build “Terra or Rook or Apple Health or Whoop” all at once.
+
+Choose:
+
+* one provider abstraction
+* one wearable source first
+
+### 2. Start with one chart
+
+Not a dashboard explosion.
+
+Just one page with:
+
+* selectable metric
+* date range
+* dose markers
+* short summary
+
+### 3. Keep body map simple
+
+2D SVG front/back is enough.
+
+No 3D, no fancy rendering.
+
+---
+
+## Tasks
+
+### Backend/API
+
+Now introduce backend routes only because they are needed:
+
+* OAuth connect route
+* callback route
+* data fetch proxy route
+
+Now is the point to add:
+
+* `openapi.yaml`
+* API client sync
+* token handling
+
+### Frontend
+
+Add:
+
+* Settings / Connect page
+* Bio-Feedback tab
+* Recharts timeline
+* Event markers for doses
+* Symptom logging UI
+
+### Injection Site Heatmap
+
+* front/back SVG body
+* tap site to log
+* store locally encrypted
+* color by recency/frequency
+
+---
+
+# Protocol — Stage 4: Freemium, Auth, Polish
+
+## TODO
+
+* Add auth
+* Add Stripe checkout
+* Add webhook handling
+* Add subscription tier logic
+* Gate premium features
+* Add cloud sync
+* Add install polish and icons
+
+## What & Why
+
+Only do this after the app is useful and retention exists.
+
+The pricing logic:
+
+* free = calculator + basic logging
+* pro = unlimited protocols + wearables + export + sync
+
+---
+
+## Done Looks Like
+
+* User can sign in
+* Subscription status is tied to account
+* Free tier limited cleanly
+* Upgrade flow is seamless
+* Pro unlocks premium features
+* PWA polish is complete
+
+---
+
+## Tasks
+
+### Auth
+
+Choose one:
+
+* Clerk
+* Supabase Auth
+
+Keep it minimal.
+
+### Billing
+
+* Stripe Checkout
+* webhook route
+* subscription status in DB
+
+### Enforcement
+
+Frontend checks plan tier and gates:
+
+* second active compound
+* wearable tab
+* export
+* sync
+
+### Sync
+
+Only now add cross-device persistence.
+
+### PWA Polish
+
+* install prompt
+* icons
+* iOS meta tags
+* splash assets
+
+---
+
+# Final Build Order
+
+## TODO
+
+1. Design system
+2. Math engine
+3. Calculator UI
+4. Syringe SVG
+5. Dose logging
+6. Recent history
+7. Protocol summary
+8. Inventory + washout
+9. Encryption
+10. PWA installability
+11. Wearables
+12. Monetisation
+
+---
+
+# Hard Rules for Lean Execution
+
+## Build this first
+
+* calculator
+* syringe
+* log dose
+* recent history
+* next due
+* washout
+* inventory
+
+## Delay this
+
+* backend
+* auth
+* OpenAPI ceremony
+* Stripe
+* fancy timeline
+* multi-provider integrations
+* polished analytics language
+* elaborate privacy architecture
+
+## Quality bar
+
+Every screen should answer:
+
+* what is my dose?
+* how much do I draw?
+* what did I last take?
+* what is due next?
+* how much do I have left?
+
+If it does not improve one of those, it is probably not MVP.
+
+---
+
+# Final Verdict
+
+Your revised plan is good. This tightened plan is better because it is:
+
+* leaner
+* faster
+* more buildable
+* more honest about what matters first
+
+The wedge is not “biohacker OS.”
+The wedge is:
+
+**a beautiful, trustworthy protocol calculator and logger with enough protocol intelligence to become habit-forming.**
+
+That is what you ship first.

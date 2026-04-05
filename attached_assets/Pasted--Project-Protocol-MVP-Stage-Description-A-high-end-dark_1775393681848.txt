@@ -1,0 +1,36 @@
+## Project: Protocol (MVP Stage)
+
+**Description:** A high-end, dark-mode Progressive Web App (PWA) designed for high-performance biohackers to manage research compound protocols. It replaces manual spreadsheets with automated reconstitution math, injection scheduling, and wearable data correlation (Whoop/Apple Health). 
+
+**Design Aesthetic:** "Cyber-Medical Stealth." Dark charcoal backgrounds (`#0a0a0a`), neon cyan accents (`#00f2ff`), and high-contrast typography. It should feel like a premium performance tool (Whoop/Strong), not a medical app.
+
+---
+
+### Stage 1: The Core Logic (Reconstitution & Syringe)
+* **The Math Engine:** Build a utility that calculates `(Dosage / Vial Size) * Water Volume` to output exact "Units" on a standard U-100 syringe.
+* **Interactive Syringe UI:** A visual SVG or CSS-based syringe that fills/drains based on the calculated dose.
+* **Compound Presets:** A local JSON store of common research compounds (BPC-157, TB-500, etc.) containing their typical half-lives for visualization.
+
+### Stage 2: The Tracker & Local Storage
+* **Logging System:** A simple "Pin" button that timestamps the dose, substance, and concentration.
+* **Cycle Canvas:** A timeline view showing the "On-Cycle" duration and a countdown for "Washout" periods.
+* **Client-Side Encryption:** Use `Web Crypto API` to encrypt all log entries before saving them to local storage or a backend, ensuring the developer never sees user data.
+
+### Stage 3: The Bio-Feedback Engine
+* **Wearable Integration:** Connect to Apple Health/Whoop via **Terra API** or **Rook**.
+* **Correlation Charts:** Use `Recharts` or `Chart.js` to overlay "Dose Timing" on top of "HRV" or "Recovery Score" metrics.
+* **Injection Site Heatmap:** A 2D body map to log and rotate injection sites to prevent tissue damage.
+
+### Stage 4: Monetization & Deployment
+* **Freemium Gate:** * **Free:** Calculator + 1 active compound log.
+    * **Pro ($19.99/mo):** Unlimited compounds, Whoop/Health sync, and CSV data export.
+* **PWA Setup:** Configure manifest and service workers so users can "Install" the app directly from the browser, bypassing App Store gatekeepers and censorship.
+
+---
+
+### Technical Stack for Replit:
+* **Framework:** Vite + React (TypeScript)
+* **Styling:** Tailwind CSS + Framer Motion (for smooth transitions)
+* **State Management:** Zustand (lightweight for "vibe coding")
+* **Charts:** Recharts
+* **Database/Auth:** Supabase (with Zero-Knowledge encryption logic)
