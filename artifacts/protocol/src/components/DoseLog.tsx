@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useProtocolStore, type DoseLogEntry } from "@/store/protocolStore";
 import { formatRelativeTime, formatUnits, formatConcentration } from "@/lib/mathEngine";
-import { Trash2, Syringe } from "lucide-react";
+import { exportAsCSV, exportAsJSON } from "@/lib/export";
+import { Trash2, Syringe, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type CompoundFilter = "all" | string;
@@ -182,6 +183,31 @@ export default function DoseLog() {
                 </div>
               </div>
             ))}
+          </div>
+
+          {/* Export section — at bottom of log */}
+          <div className="border border-[#1a1a1a] rounded-xl p-3 mt-2">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-1.5">
+                <Download className="w-3 h-3 text-cyan/50" />
+                <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest">Export</span>
+                <span className="text-[9px] text-muted-foreground/30 font-mono">{entries.length} entries</span>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => exportAsCSV(entries)}
+                  className="text-[10px] uppercase tracking-widest text-muted-foreground/50 hover:text-foreground border border-[#222] hover:border-[#333] px-2.5 py-1 rounded transition-colors"
+                >
+                  CSV
+                </button>
+                <button
+                  onClick={() => exportAsJSON(entries)}
+                  className="text-[10px] uppercase tracking-widest text-muted-foreground/50 hover:text-foreground border border-[#222] hover:border-[#333] px-2.5 py-1 rounded transition-colors"
+                >
+                  JSON
+                </button>
+              </div>
+            </div>
           </div>
         </>
       )}

@@ -161,18 +161,31 @@ export function getFrequencyIntervalHours(key: FrequencyKey): number {
   return getFrequencyOption(key)?.intervalHours ?? 24;
 }
 
-export function getNextDoseTime(lastDose: Date, key: FrequencyKey): Date {
-  const intervalMs = getFrequencyIntervalHours(key) * 3600 * 1000;
+export function resolveIntervalHours(key: FrequencyKey, customIntervalHours?: number): number {
+  if (key === "custom" && customIntervalHours && customIntervalHours > 0) {
+    return customIntervalHours;
+  }
+  return getFrequencyIntervalHours(key);
+}
+
+export function getNextDoseTime(lastDose: Date, key: FrequencyKey, customIntervalHours?: number): Date {
+  const intervalMs = resolveIntervalHours(key, customIntervalHours) * 3600 * 1000;
   return new Date(lastDose.getTime() + intervalMs);
 }
 
-export function isDoseDue(lastDose: Date, key: FrequencyKey): boolean {
-  return getNextDoseTime(lastDose, key) <= new Date();
+export function isDoseDue(lastDose: Date, key: FrequencyKey, customIntervalHours?: number): boolean {
+  return getNextDoseTime(lastDose, key, customIntervalHours) <= new Date();
 }
 
-export function timeUntilNextDose(lastDose: Date, key: FrequencyKey): number {
-  const next = getNextDoseTime(lastDose, key);
+export function timeUntilNextDose(lastDose: Date, key: FrequencyKey, customIntervalHours?: number): number {
+  const next = getNextDoseTime(lastDose, key, customIntervalHours);
   return Math.max(0, next.getTime() - Date.now());
+}
+
+export function washoutProgress(lastDose: Date, halfLifeHours: number, clearanceMultiplier = 5): number {
+  const totalMs = halfLifeHours * clearanceMultiplier * 3600 * 1000;
+  const elapsedMs = Date.now() - lastDose.getTime();
+  return Math.min(1, Math.max(0, elapsedMs / totalMs));
 }
 
 export function formatFormula(

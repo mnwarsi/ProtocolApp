@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
-import { Activity } from "lucide-react";
+import { Activity, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useProtocolStore } from "@/store/protocolStore";
 
 type Tab = "calculator" | "log" | "protocol";
 
@@ -16,6 +17,7 @@ interface AppShellProps {
 
 export default function AppShell({ children }: AppShellProps) {
   const [activeTab, setActiveTab] = useState<Tab>("calculator");
+  const { hasPassphrase, isLocked, lock } = useProtocolStore();
 
   const childArray = Array.isArray(children) ? children : [children];
 
@@ -38,7 +40,7 @@ export default function AppShell({ children }: AppShellProps) {
         </div>
 
         {/* Desktop tabs */}
-        <nav className="hidden md:flex items-end h-full gap-0">
+        <nav className="hidden md:flex items-end h-full gap-0 flex-1">
           {TABS.map(({ key, label }) => {
             const isActive = activeTab === key;
             return (
@@ -64,6 +66,18 @@ export default function AppShell({ children }: AppShellProps) {
             );
           })}
         </nav>
+
+        {/* Lock button — only when passphrase is set and session is active */}
+        {hasPassphrase && !isLocked && (
+          <button
+            onClick={() => lock()}
+            title="Lock app"
+            className="ml-auto hidden md:flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-muted-foreground/40 hover:text-cyan/80 transition-colors px-2 py-1 border border-transparent hover:border-cyan/20 rounded"
+          >
+            <Lock className="w-3 h-3" />
+            Lock
+          </button>
+        )}
       </header>
 
       {/* ── Main content ── */}

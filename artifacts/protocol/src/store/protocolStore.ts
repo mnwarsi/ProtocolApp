@@ -124,6 +124,7 @@ interface TemplateActions {
   loadTemplate: (id: string) => void;
   deleteTemplate: (id: string) => void;
   renameTemplate: (id: string, name: string) => void;
+  duplicateTemplate: (id: string) => void;
 }
 
 type ProtocolStore = CalculatorState &
@@ -211,12 +212,12 @@ export const useProtocolStore = create<ProtocolStore>()(
               try {
                 localStorage.setItem(ENCRYPTED_STORAGE_KEY, encrypted);
               } catch {
-                // ignore
+                // Storage unavailable — cannot persist, but do NOT fall back to plaintext
+                // when a passphrase is set; silently fail to avoid leaking data
               }
             })
             .catch(() => {
-              // encryption failure — fall back to plain
-              savePlainPayload(payload);
+              // Encryption failure — do NOT fall back to plaintext when passphrase is enabled
             });
         } else {
           savePlainPayload(payload);
@@ -352,16 +353,23 @@ export const useProtocolStore = create<ProtocolStore>()(
         },
 
         removePassphrase: async (passphrase) => {
-          const { saltBase64, sessionKey } = get();
-          if (!saltBase64 || !sessionKey) throw new Error("No passphrase set");
-          // Verify passphrase first by deriving key and decrypting
+          const { saltBase64 } = get();
+          if (!saltBase64) throw new Error("No passphrase set");
+          // Verify passphrase by deriving the key and actually decrypting the stored blob
+          // (merely deriving a key does not validate the passphrase)
           const salt = base64ToSalt(saltBase64);
-          await deriveKey(passphrase, salt); // throws if wrong passphrase
-          // Decrypt and save as plain
+          const key = await deriveKey(passphrase, salt);
+          const encryptedRaw = localStorage.getItem(ENCRYPTED_STORAGE_KEY);
+          if (encryptedRaw) {
+            // This throws DOMException if the key is wrong — correct passphrase validation
+            await decryptPayload(key, encryptedRaw);
+          }
+          // Passphrase verified — save current in-memory data as plaintext
           const { entries, protocols, templates } = get();
           savePlainPayload({ entries, protocols, templates });
           localStorage.removeItem(ENCRYPTED_STORAGE_KEY);
-          set({ hasPassphrase: false, saltBase64: null, sessionKey: null });
+          clearAutoLockTimer();
+          set({ hasPassphrase: false, saltBase64: null, sessionKey: null, isLocked: false });
         },
 
         setAutoLockMinutes: (minutes) => {
@@ -463,6 +471,19 @@ export const useProtocolStore = create<ProtocolStore>()(
           }));
           syncSensitive();
         },
+
+        duplicateTemplate: (id) => {
+          const template = get().templates.find((t) => t.id === id);
+          if (!template) return;
+          const copy: SavedTemplate = {
+            ...template,
+            id: crypto.randomUUID(),
+            name: `${template.name} (copy)`,
+            createdAt: new Date().toISOString(),
+          };
+          set((state) => ({ templates: [...state.templates, copy] }));
+          syncSensitive();
+        },
       };
     },
     {
@@ -504,6 +525,18 @@ const bootstrapStore = () => {
   // Always recompute result from hydrated inputs
   useProtocolStore.setState({
     result: computeResult(useProtocolStore.getState()),
+  });
+
+  // Wire user activity to reset the auto-lock timer
+  const handleActivity = () => {
+    const state = useProtocolStore.getState();
+    if (state.sessionKey && state.hasPassphrase && !state.isLocked) {
+      state.resetAutoLock();
+    }
+  };
+  const activityEvents: string[] = ["click", "keydown", "touchstart", "mousemove"];
+  activityEvents.forEach((event) => {
+    document.addEventListener(event, handleActivity, { passive: true });
   });
 };
 
