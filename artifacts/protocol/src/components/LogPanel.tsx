@@ -189,36 +189,60 @@ export default function LogPanel() {
                           {group.map((entry) => (
                             <div
                               key={entry.id}
-                              className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-lg px-3 py-2 flex items-center justify-between group hover:border-[#252525] transition-colors"
+                              className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-lg px-3 py-2 group hover:border-[#252525] transition-colors"
                             >
-                              <div className="flex items-center gap-2.5 min-w-0">
-                                <span className="font-mono font-bold text-sm leading-none" style={{ color }}>
-                                  {formatUnits(entry.units)}
-                                  <span className="text-[10px] text-muted-foreground/50 ml-0.5">u</span>
-                                </span>
-                                <div className="w-px h-5 bg-[#1e1e1e]" />
-                                <div className="min-w-0">
-                                  <div className="text-[10px] font-mono text-foreground/65 leading-none mb-0.5">
-                                    {entry.dose}{entry.doseUnit}
-                                  </div>
-                                  <div className="text-[8px] font-mono text-muted-foreground/35 leading-none">
-                                    {formatConcentration(entry.concentrationMcgPerUnit)} mcg/u
-                                    <span className="mx-1 opacity-40">·</span>
-                                    {formatConcentration(entry.concentrationMgPerMl)} mg/mL
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <span className="font-mono font-bold text-sm leading-none" style={{ color }}>
+                                    {formatUnits(entry.units)}
+                                    <span className="text-[10px] text-muted-foreground/50 ml-0.5">u</span>
+                                  </span>
+                                  <div className="w-px h-5 bg-[#1e1e1e]" />
+                                  <div className="min-w-0">
+                                    <div className="text-[10px] font-mono text-foreground/65 leading-none mb-0.5">
+                                      {entry.dose}{entry.doseUnit}
+                                    </div>
+                                    <div className="text-[8px] font-mono text-muted-foreground/35 leading-none">
+                                      {formatConcentration(entry.concentrationMcgPerUnit)} mcg/u
+                                      <span className="mx-1 opacity-40">·</span>
+                                      {formatConcentration(entry.concentrationMgPerMl)} mg/mL
+                                    </div>
                                   </div>
                                 </div>
+                                <div className="flex flex-col items-end gap-1 ml-2 shrink-0">
+                                  <span className="text-[8px] font-mono text-muted-foreground/35 whitespace-nowrap">
+                                    {formatRelativeTime(new Date(entry.timestamp))}
+                                  </span>
+                                  <button
+                                    onClick={() => deleteEntry(entry.id)}
+                                    className="text-muted-foreground/25 hover:text-destructive md:opacity-0 md:group-hover:opacity-100 transition-all"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                </div>
                               </div>
-                              <div className="flex flex-col items-end gap-1 ml-2 shrink-0">
-                                <span className="text-[8px] font-mono text-muted-foreground/35 whitespace-nowrap">
-                                  {formatRelativeTime(new Date(entry.timestamp))}
-                                </span>
-                                <button
-                                  onClick={() => deleteEntry(entry.id)}
-                                  className="text-muted-foreground/25 hover:text-destructive md:opacity-0 md:group-hover:opacity-100 transition-all"
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                </button>
-                              </div>
+                              {/* Symptom tags + note */}
+                              {(entry.symptomTags?.length || entry.symptomNote) && (
+                                <div className="mt-1.5 pt-1.5 border-t border-[#1a1a1a] space-y-1">
+                                  {entry.symptomTags && entry.symptomTags.length > 0 && (
+                                    <div className="flex flex-wrap gap-1">
+                                      {entry.symptomTags.map((tag) => (
+                                        <span
+                                          key={tag}
+                                          className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-cyan/5 border border-cyan/15 text-cyan/50"
+                                        >
+                                          {tag}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {entry.symptomNote && (
+                                    <p className="text-[8px] font-mono text-muted-foreground/40 italic leading-relaxed">
+                                      "{entry.symptomNote}"
+                                    </p>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>

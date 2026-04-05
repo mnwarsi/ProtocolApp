@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { useProtocolStore } from "@/store/protocolStore";
+import { useProtocolStore, SYMPTOM_TAGS, type SymptomTag } from "@/store/protocolStore";
 import { COMPOUNDS, getCompoundById } from "@/data/compounds";
 import { formatUnits, formatConcentration, formatFormula } from "@/lib/mathEngine";
-import { AlertCircle, ChevronDown, ChevronRight } from "lucide-react";
+import { AlertCircle, ChevronDown, ChevronRight, CheckCircle2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function CalculatorPanel() {
@@ -22,10 +22,20 @@ export default function CalculatorPanel() {
   } = useProtocolStore();
 
   const [showFormula, setShowFormula] = useState(false);
+  const [showSymptomForm, setShowSymptomForm] = useState(false);
+  const [symptomNote, setSymptomNote] = useState("");
+  const [selectedTags, setSelectedTags] = useState<SymptomTag[]>([]);
+  const [justLogged, setJustLogged] = useState(false);
+
   const compound = getCompoundById(selectedCompoundId);
 
-  const handleLogDose = () => {
-    if (!result || !result.valid || !compound) return;
+  const handleLogDoseClick = () => {
+    if (!result?.valid || !compound) return;
+    setShowSymptomForm(true);
+  };
+
+  const handleConfirmLog = () => {
+    if (!result?.valid || !compound) return;
     logDose({
       compound: compound.name,
       compoundId: compound.id,
@@ -34,7 +44,20 @@ export default function CalculatorPanel() {
       units: result.syringeUnits,
       concentrationMcgPerUnit: result.concentrationMcgPerUnit,
       concentrationMgPerMl: result.concentrationMgPerMl,
+      symptomNote: symptomNote.trim() || undefined,
+      symptomTags: selectedTags.length > 0 ? [...selectedTags] : undefined,
     });
+    setShowSymptomForm(false);
+    setSymptomNote("");
+    setSelectedTags([]);
+    setJustLogged(true);
+    setTimeout(() => setJustLogged(false), 2000);
+  };
+
+  const toggleTag = (tag: SymptomTag) => {
+    setSelectedTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+    );
   };
 
   const inputClass =
@@ -201,21 +224,101 @@ export default function CalculatorPanel() {
             </div>
           )}
 
-          {/* CTA + Formula */}
+          {/* CTA + Symptom Form + Formula */}
           <div className="flex flex-col gap-2">
-            <button
-              data-testid="btn-log-dose"
-              disabled={!result?.valid}
-              onClick={handleLogDose}
-              className="w-full bg-cyan text-black font-bold py-2.5 rounded-md hover:bg-cyan/90 active:scale-[0.99] disabled:bg-cyan/15 disabled:text-cyan/30 disabled:cursor-not-allowed transition-all duration-150 uppercase tracking-widest text-xs"
-              style={
-                result?.valid
-                  ? { boxShadow: "0 0 20px rgba(0,242,255,0.25), 0 2px 8px rgba(0,0,0,0.4)" }
-                  : undefined
-              }
-            >
-              Log Dose
-            </button>
+            {/* Step 1: Log Dose trigger */}
+            {!showSymptomForm && (
+              <button
+                data-testid="btn-log-dose"
+                disabled={!result?.valid}
+                onClick={handleLogDoseClick}
+                className={cn(
+                  "w-full font-bold py-2.5 rounded-md active:scale-[0.99] disabled:cursor-not-allowed transition-all duration-150 uppercase tracking-widest text-xs flex items-center justify-center gap-2",
+                  justLogged
+                    ? "bg-cyan/20 text-cyan border border-cyan/40"
+                    : "bg-cyan text-black hover:bg-cyan/90 disabled:bg-cyan/15 disabled:text-cyan/30"
+                )}
+                style={
+                  result?.valid && !justLogged
+                    ? { boxShadow: "0 0 20px rgba(0,242,255,0.25), 0 2px 8px rgba(0,0,0,0.4)" }
+                    : undefined
+                }
+              >
+                {justLogged ? (
+                  <>
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Logged
+                  </>
+                ) : (
+                  "Log Dose"
+                )}
+              </button>
+            )}
+
+            {/* Step 2: Symptom form */}
+            {showSymptomForm && result?.valid && (
+              <div className="bg-[#0d0d0d] border border-[#222] rounded-xl p-3 space-y-3 animate-in fade-in slide-in-from-bottom-1 duration-200">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-widest">
+                    Symptom Check-in
+                  </span>
+                  <button
+                    onClick={() => { setShowSymptomForm(false); setSymptomNote(""); setSelectedTags([]); }}
+                    className="text-muted-foreground/30 hover:text-muted-foreground transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                {/* Tag chips */}
+                <div className="flex flex-wrap gap-1.5">
+                  {SYMPTOM_TAGS.map((tag) => (
+                    <button
+                      key={tag}
+                      onClick={() => toggleTag(tag)}
+                      className={cn(
+                        "text-[9px] font-mono px-2 py-1 rounded border transition-all",
+                        selectedTags.includes(tag)
+                          ? "bg-cyan/15 border-cyan/40 text-cyan"
+                          : "bg-[#111] border-[#2a2a2a] text-muted-foreground/50 hover:border-[#333] hover:text-muted-foreground/70"
+                      )}
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Free-text note */}
+                <input
+                  type="text"
+                  placeholder="Optional note — how are you feeling?"
+                  value={symptomNote}
+                  onChange={(e) => setSymptomNote(e.target.value)}
+                  className="w-full bg-[#111] border border-[#222] rounded-md px-3 py-2 text-xs font-mono text-foreground placeholder-muted-foreground/30 focus:outline-none focus:border-cyan/50 focus:ring-1 focus:ring-cyan/20 transition-colors"
+                />
+
+                {/* Confirm button */}
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleConfirmLog}
+                    className="flex-1 bg-cyan text-black font-bold py-2 rounded-md hover:bg-cyan/90 transition-all text-xs uppercase tracking-widest"
+                    style={{ boxShadow: "0 0 12px rgba(0,242,255,0.2)" }}
+                  >
+                    Confirm &amp; Log
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSymptomNote("");
+                      setSelectedTags([]);
+                      handleConfirmLog();
+                    }}
+                    className="px-3 py-2 text-xs text-muted-foreground/50 border border-[#222] rounded-md hover:border-[#333] hover:text-muted-foreground transition-colors whitespace-nowrap"
+                  >
+                    Skip
+                  </button>
+                </div>
+              </div>
+            )}
 
             <button
               onClick={() => setShowFormula(!showFormula)}

@@ -14,6 +14,12 @@ import {
 
 // ─── Data types ───────────────────────────────────────────────────────────────
 
+export const SYMPTOM_TAGS = [
+  "energy↑", "energy↓", "sleep+", "sleep−", "mood+", "mood−",
+  "focus+", "fatigue", "soreness", "nausea", "side-effect",
+] as const;
+export type SymptomTag = (typeof SYMPTOM_TAGS)[number];
+
 export interface DoseLogEntry {
   id: string;
   compound: string;
@@ -24,6 +30,8 @@ export interface DoseLogEntry {
   concentrationMcgPerUnit: number;
   concentrationMgPerMl: number;
   timestamp: string;
+  symptomNote?: string;
+  symptomTags?: SymptomTag[];
 }
 
 export interface ActiveProtocol {
@@ -49,12 +57,21 @@ export interface SavedTemplate {
   createdAt: string;
 }
 
+// ─── Injection sites ──────────────────────────────────────────────────────────
+
+export interface InjectionSiteEntry {
+  id: string;
+  siteId: string;
+  timestamp: string;
+}
+
 // ─── Sensitive payload (encrypted or plain) ───────────────────────────────────
 
 interface SensitivePayload {
   entries: DoseLogEntry[];
   protocols: ActiveProtocol[];
   templates: SavedTemplate[];
+  injectionSites?: InjectionSiteEntry[];
 }
 
 const PLAIN_STORAGE_KEY = "protocol-plain";
@@ -84,6 +101,7 @@ interface RuntimeState {
   entries: DoseLogEntry[];
   protocols: ActiveProtocol[];
   templates: SavedTemplate[];
+  injectionSites: InjectionSiteEntry[];
 }
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
@@ -127,6 +145,11 @@ interface TemplateActions {
   duplicateTemplate: (id: string) => void;
 }
 
+interface InjectionSiteActions {
+  logInjectionSite: (siteId: string) => void;
+  clearInjectionSite: (siteId: string) => void;
+}
+
 type ProtocolStore = CalculatorState &
   LockMeta &
   RuntimeState &
@@ -134,7 +157,8 @@ type ProtocolStore = CalculatorState &
   LockActions &
   LogsActions &
   ProtocolActions &
-  TemplateActions;
+  TemplateActions &
+  InjectionSiteActions;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -204,8 +228,8 @@ export const useProtocolStore = create<ProtocolStore>()(
     (set, get) => {
       // Helper: persist sensitive data after each mutation
       const syncSensitive = (): void => {
-        const { entries, protocols, templates, hasPassphrase, sessionKey } = get();
-        const payload: SensitivePayload = { entries, protocols, templates };
+        const { entries, protocols, templates, injectionSites, hasPassphrase, sessionKey } = get();
+        const payload: SensitivePayload = { entries, protocols, templates, injectionSites };
         if (hasPassphrase && sessionKey) {
           encryptPayload(sessionKey, payload)
             .then((encrypted) => {
@@ -251,6 +275,7 @@ export const useProtocolStore = create<ProtocolStore>()(
         entries: [],
         protocols: [],
         templates: [],
+        injectionSites: [],
 
         // ── Calculator actions ──
         setCompound: (id) => {
@@ -320,6 +345,7 @@ export const useProtocolStore = create<ProtocolStore>()(
               entries: payload.entries ?? [],
               protocols: payload.protocols ?? [],
               templates: payload.templates ?? [],
+              injectionSites: payload.injectionSites ?? [],
             });
             startAutoLock();
           } catch {
@@ -336,15 +362,16 @@ export const useProtocolStore = create<ProtocolStore>()(
             entries: [],
             protocols: [],
             templates: [],
+            injectionSites: [],
           });
         },
 
         setPassphrase: async (passphrase) => {
-          const { entries, protocols, templates } = get();
+          const { entries, protocols, templates, injectionSites } = get();
           const salt = await generateSalt();
           const saltB64 = saltToBase64(salt);
           const key = await deriveKey(passphrase, salt);
-          const payload: SensitivePayload = { entries, protocols, templates };
+          const payload: SensitivePayload = { entries, protocols, templates, injectionSites };
           const encrypted = await encryptPayload(key, payload);
           localStorage.setItem(ENCRYPTED_STORAGE_KEY, encrypted);
           localStorage.removeItem(PLAIN_STORAGE_KEY);
@@ -484,6 +511,26 @@ export const useProtocolStore = create<ProtocolStore>()(
           set((state) => ({ templates: [...state.templates, copy] }));
           syncSensitive();
         },
+
+        // ── Injection site actions ──
+        logInjectionSite: (siteId) => {
+          const entry: InjectionSiteEntry = {
+            id: crypto.randomUUID(),
+            siteId,
+            timestamp: new Date().toISOString(),
+          };
+          set((state) => ({
+            injectionSites: [entry, ...state.injectionSites].slice(0, 500),
+          }));
+          syncSensitive();
+        },
+
+        clearInjectionSite: (siteId) => {
+          set((state) => ({
+            injectionSites: state.injectionSites.filter((s) => s.siteId !== siteId),
+          }));
+          syncSensitive();
+        },
       };
     },
     {
@@ -514,6 +561,7 @@ const bootstrapStore = () => {
         entries: payload.entries ?? [],
         protocols: payload.protocols ?? [],
         templates: payload.templates ?? [],
+        injectionSites: payload.injectionSites ?? [],
         isLocked: false,
       });
     }

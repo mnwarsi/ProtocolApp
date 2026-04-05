@@ -3,12 +3,14 @@ import { Activity, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useProtocolStore } from "@/store/protocolStore";
 
-type Tab = "calculator" | "log" | "protocol";
+type Tab = "calculator" | "log" | "protocol" | "bio" | "settings";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "calculator", label: "Calculator" },
   { key: "log", label: "Log" },
   { key: "protocol", label: "Protocol" },
+  { key: "bio", label: "Bio" },
+  { key: "settings", label: "Settings" },
 ];
 
 interface AppShellProps {
@@ -26,7 +28,7 @@ export default function AppShell({ children }: AppShellProps) {
       {/* ── Header ── */}
       <header className="sticky top-0 z-50 flex items-center h-14 px-4 md:px-6 border-b border-[#181818] bg-background/90 backdrop-blur-md">
         {/* Logo */}
-        <div className="flex items-center gap-2 mr-8">
+        <div className="flex items-center gap-2 mr-6">
           <Activity
             className="w-4 h-4 text-cyan"
             style={{ filter: "drop-shadow(0 0 6px rgba(0,242,255,0.6))" }}
@@ -40,7 +42,7 @@ export default function AppShell({ children }: AppShellProps) {
         </div>
 
         {/* Desktop tabs */}
-        <nav className="hidden md:flex items-end h-full gap-0 flex-1">
+        <nav className="hidden md:flex items-end h-full gap-0 flex-1 overflow-x-auto">
           {TABS.map(({ key, label }) => {
             const isActive = activeTab === key;
             return (
@@ -49,13 +51,12 @@ export default function AppShell({ children }: AppShellProps) {
                 data-testid={`tab-desktop-${key}`}
                 onClick={() => setActiveTab(key)}
                 className={cn(
-                  "relative px-4 h-full flex items-center text-xs font-medium tracking-wider uppercase transition-colors duration-150",
+                  "relative px-3 h-full flex items-center text-xs font-medium tracking-wider uppercase transition-colors duration-150 whitespace-nowrap",
                   isActive ? "text-cyan" : "text-muted-foreground/60 hover:text-muted-foreground"
                 )}
                 style={isActive ? { textShadow: "0 0 12px rgba(0,242,255,0.6)" } : undefined}
               >
                 {label}
-                {/* Active underline bar */}
                 {isActive && (
                   <span
                     className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full bg-cyan"
@@ -67,7 +68,7 @@ export default function AppShell({ children }: AppShellProps) {
           })}
         </nav>
 
-        {/* Lock button — only when passphrase is set and session is active */}
+        {/* Lock button */}
         {hasPassphrase && !isLocked && (
           <button
             onClick={() => lock()}
@@ -97,17 +98,19 @@ export default function AppShell({ children }: AppShellProps) {
 
         {activeTab === "protocol" && (
           <div>
-            {childArray[3] ?? (
-              <div className="flex flex-col items-center justify-center h-64 gap-3 border border-dashed border-[#1e1e1e] rounded-xl text-muted-foreground">
-                <Activity className="w-6 h-6 text-muted-foreground/20" />
-                <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/40">
-                  Coming in Stage 2
-                </p>
-                <p className="text-[10px] text-muted-foreground/25 text-center max-w-xs">
-                  Protocol scheduling, washout timers, and inventory tracking.
-                </p>
-              </div>
-            )}
+            {childArray[3] ?? null}
+          </div>
+        )}
+
+        {activeTab === "bio" && (
+          <div>
+            {childArray[4] ?? null}
+          </div>
+        )}
+
+        {activeTab === "settings" && (
+          <div>
+            {childArray[5] ?? null}
           </div>
         )}
       </main>
@@ -127,7 +130,7 @@ export default function AppShell({ children }: AppShellProps) {
               )}
             >
               <span
-                className="text-[10px] font-medium tracking-widest uppercase"
+                className="text-[9px] font-medium tracking-widest uppercase"
                 style={isActive ? { textShadow: "0 0 8px rgba(0,242,255,0.5)" } : undefined}
               >
                 {label}

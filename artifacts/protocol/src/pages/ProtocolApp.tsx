@@ -3,6 +3,8 @@ import CalculatorPanel from "@/components/CalculatorPanel";
 import SyringeDisplay from "@/components/SyringeDisplay";
 import LogPanel from "@/components/LogPanel";
 import ProtocolPanel from "@/components/ProtocolPanel";
+import BiofeedbackPanel from "@/components/BiofeedbackPanel";
+import SettingsPanel from "@/components/SettingsPanel";
 import LockScreen from "@/components/LockScreen";
 import AppShell from "@/components/AppShell";
 
@@ -19,6 +21,8 @@ export default function ProtocolApp() {
       <SyringeDisplay />
       <LogPanel />
       <ProtocolPanel />
+      <BiofeedbackPanel />
+      <SettingsPanel />
     </AppShell>
   );
 }

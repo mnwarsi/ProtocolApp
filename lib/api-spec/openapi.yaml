@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: wearable
+    description: Wearable device OAuth and data proxy
 paths:
   /healthz:
     get:
@@ -24,6 +26,99 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /wearable/connect:
+    get:
+      operationId: wearableConnect
+      tags: [wearable]
+      summary: Begin OAuth flow
+      description: Redirects browser to wearable provider OAuth authorization page
+      responses:
+        "302":
+          description: Redirect to provider OAuth page
+
+  /wearable/callback:
+    get:
+      operationId: wearableCallback
+      tags: [wearable]
+      summary: OAuth callback
+      description: Handles OAuth callback, exchanges code for access token
+      parameters:
+        - name: code
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: error
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Redirect back to app with connection status
+
+  /wearable/status:
+    get:
+      operationId: wearableStatus
+      tags: [wearable]
+      summary: Get connection status
+      description: Returns whether a wearable is connected and provider info
+      responses:
+        "200":
+          description: Connection status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WearableStatus"
+
+  /wearable/disconnect:
+    post:
+      operationId: wearableDisconnect
+      tags: [wearable]
+      summary: Disconnect wearable
+      description: Clears stored OAuth tokens
+      responses:
+        "200":
+          description: Disconnected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WearableStatus"
+
+  /wearable/data:
+    get:
+      operationId: wearableData
+      tags: [wearable]
+      summary: Fetch biometric data
+      description: Proxies data fetch from wearable provider API
+      parameters:
+        - name: metric
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [hrv, recovery, rhr, sleep]
+        - name: days
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 30
+      responses:
+        "200":
+          description: Biometric data points
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BiometricDataResponse"
+        "401":
+          description: No wearable connected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +129,59 @@ components:
       required:
         - status
 
+    WearableStatus:
+      type: object
+      properties:
+        connected:
+          type: boolean
+        provider:
+          type: string
+          nullable: true
+        connectedAt:
+          type: string
+          nullable: true
+      required:
+        - connected
+        - provider
+        - connectedAt
+
+    BiometricDataPoint:
+      type: object
+      properties:
+        date:
+          type: string
+          description: ISO date string
+        value:
+          type: number
+          nullable: true
+        metric:
+          type: string
+      required:
+        - date
+        - value
+        - metric
+
+    BiometricDataResponse:
+      type: object
+      properties:
+        metric:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/BiometricDataPoint"
+        source:
+          type: string
+          description: "demo | whoop"
+      required:
+        - metric
+        - data
+        - source
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
