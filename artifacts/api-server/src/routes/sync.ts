@@ -7,12 +7,32 @@ const router: IRouter = Router();
 
 const MAX_BLOB_SIZE = 2 * 1024 * 1024;
 
-// GET /api/sync/blob — Download encrypted payload for authenticated user
+// GET /api/sync/salt — Get (or create) per-user encryption salt
+router.get("/sync/salt", requireAuth, async (req, res) => {
+  const userId = (req as AuthedRequest).userId;
+
+  try {
+    await storage.upsertUser({ id: userId });
+    const salt = await storage.getOrCreateEncryptionSalt(userId);
+    res.json({ salt });
+  } catch (err) {
+    logger.error({ err }, "Failed to get encryption salt");
+    res.status(500).json({ error: "Failed to get encryption salt" });
+  }
+});
+
+// GET /api/sync/blob — Download encrypted payload (Pro only)
 router.get("/sync/blob", requireAuth, async (req, res) => {
   const userId = (req as AuthedRequest).userId;
 
   try {
     await storage.upsertUser({ id: userId });
+    const tier = await storage.getUserTier(userId);
+    if (tier !== "pro") {
+      res.status(403).json({ error: "Cloud sync requires Protocol Pro" });
+      return;
+    }
+
     const blob = await storage.getCloudBlob(userId);
     if (!blob) {
       res.status(404).json({ blob: null });
@@ -25,7 +45,7 @@ router.get("/sync/blob", requireAuth, async (req, res) => {
   }
 });
 
-// PUT /api/sync/blob — Upload encrypted payload for authenticated user
+// PUT /api/sync/blob — Upload encrypted payload (Pro only)
 router.put("/sync/blob", requireAuth, async (req, res) => {
   const userId = (req as AuthedRequest).userId;
   const { blob } = req.body as { blob?: string };
@@ -42,6 +62,12 @@ router.put("/sync/blob", requireAuth, async (req, res) => {
 
   try {
     await storage.upsertUser({ id: userId });
+    const tier = await storage.getUserTier(userId);
+    if (tier !== "pro") {
+      res.status(403).json({ error: "Cloud sync requires Protocol Pro" });
+      return;
+    }
+
     await storage.putCloudBlob(userId, blob);
     res.json({ ok: true, updatedAt: new Date().toISOString() });
   } catch (err) {

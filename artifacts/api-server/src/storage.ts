@@ -52,6 +52,22 @@ export class Storage {
     }
   }
 
+  async getOrCreateEncryptionSalt(userId: string): Promise<string> {
+    const user = await this.getUser(userId);
+    if (user?.encryptionSalt) return user.encryptionSalt;
+
+    // Generate a new 32-byte random salt (hex encoded)
+    const saltBytes = crypto.getRandomValues(new Uint8Array(32));
+    const salt = Array.from(saltBytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+
+    const [updated] = await db
+      .update(users)
+      .set({ encryptionSalt: salt, updatedAt: sql`NOW()` })
+      .where(eq(users.id, userId))
+      .returning();
+    return updated?.encryptionSalt ?? salt;
+  }
+
   async getCloudBlob(userId: string): Promise<string | null> {
     const [row] = await db
       .select()

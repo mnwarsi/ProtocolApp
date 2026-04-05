@@ -59,7 +59,7 @@ function SectionHeader({
 }
 
 export default function LogPanel() {
-  const { protocols, entries, deleteEntry, clearAll } = useProtocolStore();
+  const { protocols, entries, deleteEntry, clearAll, tier } = useProtocolStore();
   const activeProtocols = protocols.filter((p) => p.active);
 
   const [showTimeline, setShowTimeline] = useState(activeProtocols.length > 0);
@@ -164,6 +164,7 @@ export default function LogPanel() {
                   </button>
                 </div>
 
+
                 {/* Group by compound */}
                 {Array.from(
                   entries.reduce((map, e) => {
@@ -250,32 +251,44 @@ export default function LogPanel() {
                     );
                   })}
 
-                {/* Export */}
-                <div className="border border-[#1a1a1a] rounded-xl p-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-1.5">
-                      <Download className="w-3 h-3 text-cyan/40" />
-                      <span className="text-[10px] font-semibold text-muted-foreground/40 uppercase tracking-widest">Export</span>
-                      <span className="text-[9px] text-muted-foreground/25 font-mono">{entries.length} entries</span>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => exportAsCSV(entries)}
-                        className="text-[10px] uppercase tracking-widest text-muted-foreground/40 hover:text-foreground border border-[#1e1e1e] hover:border-[#2e2e2e] px-2.5 py-1 rounded transition-colors"
-                      >
-                        CSV
-                      </button>
-                      <button
-                        onClick={() => exportAsJSON(entries)}
-                        className="text-[10px] uppercase tracking-widest text-muted-foreground/40 hover:text-foreground border border-[#1e1e1e] hover:border-[#2e2e2e] px-2.5 py-1 rounded transition-colors"
-                      >
-                        JSON
-                      </button>
-                    </div>
-                  </div>
-                </div>
               </>
             )}
+
+            {/* Export — Pro only — always visible when History is open */}
+            <div className="border border-[#1a1a1a] rounded-xl p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-1.5">
+                  <Download className="w-3 h-3 text-cyan/40" />
+                  <span className="text-[10px] font-semibold text-muted-foreground/40 uppercase tracking-widest">Export</span>
+                  <span className="text-[9px] text-muted-foreground/25 font-mono">{entries.length} entries</span>
+                </div>
+                {tier === "pro" ? (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => exportAsCSV(entries)}
+                      className="text-[10px] uppercase tracking-widest text-muted-foreground/40 hover:text-foreground border border-[#1e1e1e] hover:border-[#2e2e2e] px-2.5 py-1 rounded transition-colors"
+                    >
+                      CSV
+                    </button>
+                    <button
+                      onClick={() => exportAsJSON(entries)}
+                      className="text-[10px] uppercase tracking-widest text-muted-foreground/40 hover:text-foreground border border-[#1e1e1e] hover:border-[#2e2e2e] px-2.5 py-1 rounded transition-colors"
+                    >
+                      JSON
+                    </button>
+                  </div>
+                ) : (
+                  <span className="text-[9px] font-mono px-2 py-1 rounded bg-cyan/5 border border-cyan/15 text-cyan/50 uppercase tracking-wider">
+                    Pro
+                  </span>
+                )}
+              </div>
+              {tier !== "pro" && (
+                <p className="text-[9px] text-muted-foreground/25 mt-1.5 font-mono">
+                  Upgrade to Protocol Pro to export your logs as CSV or JSON.
+                </p>
+              )}
+            </div>
           </div>
         )}
       </div>

@@ -570,6 +570,7 @@ export const useProtocolStore = create<ProtocolStore>()(
         },
 
         syncToCloud: async (userId) => {
+          if (get().tier !== "pro") return;
           const state = get();
           set({ cloudSyncing: true });
           try {
@@ -589,6 +590,7 @@ export const useProtocolStore = create<ProtocolStore>()(
         },
 
         syncFromCloud: async (userId) => {
+          if (get().tier !== "pro") return false;
           set({ cloudSyncing: true });
           try {
             const blob = await downloadBlob();

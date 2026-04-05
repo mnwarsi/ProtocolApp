@@ -45,10 +45,14 @@ function AuthSync() {
 
     if (isSignedIn && userId) {
       setSignedInUserId(userId);
-      refreshTier().catch(() => setTier("free"));
-      syncFromCloud(userId).then((didSync) => {
-        if (!didSync) syncToCloud(userId).catch(() => {});
-      });
+      // Refresh tier first, then sync — sync requires Pro tier to be set
+      refreshTier()
+        .catch(() => setTier("free"))
+        .then(() => syncFromCloud(userId))
+        .then((didSync) => {
+          if (!didSync) syncToCloud(userId).catch(() => {});
+        })
+        .catch(() => {});
     } else {
       setSignedInUserId(null);
       setTier("free");

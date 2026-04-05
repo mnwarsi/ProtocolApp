@@ -30,17 +30,34 @@ router.post("/subscription/checkout", requireAuth, async (req, res) => {
   }
 
   const userId = (req as AuthedRequest).userId;
-  const { priceId, email } = req.body as { priceId: string; email?: string };
-
-  if (!priceId) {
-    res.status(400).json({ error: "priceId is required" });
-    return;
-  }
+  const { priceId: clientPriceId, email } = req.body as { priceId?: string; email?: string };
 
   try {
     const stripe = await getUncachableStripeClient();
     if (!stripe) {
       res.status(503).json({ error: "Payments not configured" });
+      return;
+    }
+
+    // Resolve priceId: use client-supplied value or look up the Protocol Pro price
+    let resolvedPriceId = clientPriceId;
+    if (!resolvedPriceId) {
+      const products = await stripe.products.search({
+        query: "name:'Protocol Pro' AND active:'true'",
+      });
+      if (products.data.length > 0) {
+        const prices = await stripe.prices.list({
+          product: products.data[0].id,
+          active: true,
+          limit: 1,
+        });
+        if (prices.data.length > 0) {
+          resolvedPriceId = prices.data[0].id;
+        }
+      }
+    }
+    if (!resolvedPriceId) {
+      res.status(503).json({ error: "Protocol Pro price not found in Stripe catalog. Create the product first." });
       return;
     }
 
@@ -60,7 +77,7 @@ router.post("/subscription/checkout", requireAuth, async (req, res) => {
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       payment_method_types: ["card"],
-      line_items: [{ price: priceId, quantity: 1 }],
+      line_items: [{ price: resolvedPriceId, quantity: 1 }],
       mode: "subscription",
       success_url: `${APP_BASE_URL}/?checkout=success#settings`,
       cancel_url: `${APP_BASE_URL}/?checkout=cancel#settings`,

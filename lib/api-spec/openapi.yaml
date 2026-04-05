@@ -12,6 +12,10 @@ tags:
     description: Health operations
   - name: wearable
     description: Wearable device OAuth and data proxy
+  - name: subscription
+    description: Stripe subscription management
+  - name: sync
+    description: Encrypted cloud sync for Pro users
 paths:
   /healthz:
     get:
@@ -119,7 +123,156 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /subscription/status:
+    get:
+      operationId: getSubscriptionStatus
+      tags: [subscription]
+      summary: Get subscription tier
+      description: Returns the authenticated user's subscription tier (free or pro)
+      security:
+        - ClerkAuth: []
+      responses:
+        "200":
+          description: Subscription status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionStatus"
+
+  /subscription/checkout:
+    post:
+      operationId: createCheckoutSession
+      tags: [subscription]
+      summary: Create Stripe Checkout session
+      description: Creates a Stripe Checkout session for upgrading to Pro. priceId is optional — backend resolves from catalog if omitted.
+      security:
+        - ClerkAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckoutRequest"
+      responses:
+        "200":
+          description: Checkout session URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckoutResponse"
+        "503":
+          description: Payments not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /subscription/portal:
+    post:
+      operationId: createPortalSession
+      tags: [subscription]
+      summary: Create Stripe customer portal session
+      description: Returns a URL to the Stripe billing portal for managing the subscription
+      security:
+        - ClerkAuth: []
+      responses:
+        "200":
+          description: Portal session URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PortalResponse"
+
+  /subscription/price:
+    get:
+      operationId: getProPrice
+      tags: [subscription]
+      summary: Get Protocol Pro price info
+      description: Returns the active Stripe price ID and amount for Protocol Pro
+      responses:
+        "200":
+          description: Price info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PriceResponse"
+
+  /sync/salt:
+    get:
+      operationId: getSyncSalt
+      tags: [sync]
+      summary: Get per-user encryption salt
+      description: Returns (or creates) a random server-side salt used in client-side key derivation for cloud sync
+      security:
+        - ClerkAuth: []
+      responses:
+        "200":
+          description: Per-user salt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SaltResponse"
+
+  /sync/blob:
+    get:
+      operationId: downloadBlob
+      tags: [sync]
+      summary: Download encrypted sync blob (Pro only)
+      description: Downloads the user's encrypted sync blob from the server. Requires Pro subscription.
+      security:
+        - ClerkAuth: []
+      responses:
+        "200":
+          description: Encrypted blob
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BlobResponse"
+        "403":
+          description: Pro subscription required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      operationId: uploadBlob
+      tags: [sync]
+      summary: Upload encrypted sync blob (Pro only)
+      description: Uploads the user's AES-GCM encrypted sync blob. Requires Pro subscription.
+      security:
+        - ClerkAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BlobUploadRequest"
+      responses:
+        "200":
+          description: Upload confirmation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BlobUploadResponse"
+        "403":
+          description: Pro subscription required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "413":
+          description: Payload too large
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
+  securitySchemes:
+    ClerkAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Clerk session token passed via Authorization header or session cookie
   schemas:
     HealthStatus:
       type: object
@@ -185,3 +338,88 @@ components:
           type: string
       required:
         - error
+
+    SubscriptionStatus:
+      type: object
+      properties:
+        tier:
+          type: string
+          enum: [free, pro]
+      required:
+        - tier
+
+    CheckoutRequest:
+      type: object
+      properties:
+        priceId:
+          type: string
+          description: Optional Stripe price ID; backend resolves if omitted
+
+    CheckoutResponse:
+      type: object
+      properties:
+        url:
+          type: string
+          description: Stripe Checkout session URL to redirect to
+      required:
+        - url
+
+    PortalResponse:
+      type: object
+      properties:
+        url:
+          type: string
+          description: Stripe customer portal URL
+      required:
+        - url
+
+    PriceResponse:
+      type: object
+      properties:
+        priceId:
+          type: string
+          nullable: true
+        amount:
+          type: number
+        currency:
+          type: string
+      required:
+        - amount
+        - currency
+
+    SaltResponse:
+      type: object
+      properties:
+        salt:
+          type: string
+          description: Per-user random hex salt for client-side key derivation
+      required:
+        - salt
+
+    BlobResponse:
+      type: object
+      properties:
+        blob:
+          type: string
+          nullable: true
+          description: Base64-encoded AES-GCM encrypted payload
+
+    BlobUploadRequest:
+      type: object
+      properties:
+        blob:
+          type: string
+          description: Base64-encoded AES-GCM encrypted payload
+      required:
+        - blob
+
+    BlobUploadResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        updatedAt:
+          type: string
+      required:
+        - ok
+        - updatedAt
