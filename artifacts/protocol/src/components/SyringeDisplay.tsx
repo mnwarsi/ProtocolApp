@@ -111,21 +111,24 @@ export default function SyringeDisplay() {
               strokeWidth="1.5"
             />
 
-            {/* === LIQUID FILL (ANIMATED, fills from RIGHT side) === */}
+            {/* === LIQUID FILL (fills from RIGHT/needle side toward LEFT/plunger) === */}
+            {/* Extends 4px into the gasket to eliminate any spring-desync gap */}
             <motion.rect
               y={barrelY + 1}
               height={barrelH - 2}
               fill="url(#liquidGradient)"
               clipPath="url(#barrelClip)"
               initial={{ x: barrelX + barrelW, width: 0 }}
-              animate={{ x: liquidX, width: fillW }}
+              animate={{ x: liquidX - 4, width: fillW + 4 }}
               transition={{ type: "spring", stiffness: 55, damping: 14 }}
             />
 
             {/* === GRADUATION TICKS === */}
+            {/* 0 is at the needle end (right), 100 is at the plunger end (left) */}
             {Array.from({ length: 11 }).map((_, i) => {
               const xPos = barrelX + (i * barrelW) / 10;
               const isMajor = i % 2 === 0;
+              const label = (10 - i) * 10; // 100 at left → 0 at right (needle)
               const isFilled = xPos > liquidX;
               return (
                 <g key={i}>
@@ -146,7 +149,7 @@ export default function SyringeDisplay() {
                       fontFamily="'JetBrains Mono', monospace"
                       textAnchor="middle"
                     >
-                      {i * 10}
+                      {label}
                     </text>
                   )}
                 </g>
