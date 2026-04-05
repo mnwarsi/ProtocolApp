@@ -1,0 +1,118 @@
+Tighten and refine the current Protocol UI. Keep the overall aesthetic and product direction, and preserve the glow-heavy cyber-medical look. This should feel less like a nice dashboard mockup and more like an obsessively refined precision instrument.
+
+Core goals:
+
+* Preserve the premium “Cyber-Medical Stealth” aesthetic
+* Keep the glows; do not flatten the design
+* Increase visual density slightly
+* Improve clarity, trust, and physical intuitiveness
+* Strengthen the “scary math made calm and instant” loop
+* Do not add feature bloat or unnecessary complexity
+
+Priority fixes:
+
+1. Fix the syringe animation immediately
+
+* The syringe animation is currently backwards
+* As draw amount increases, the visual must show more liquid drawn into the barrel in the physically correct direction
+* The liquid fill, empty space, and plunger movement must all behave plausibly
+* Do not make it behave like a generic progress bar
+* The syringe is a trust-critical interaction, not a decorative one
+
+2. Make the syringe component more important
+
+* Enlarge the syringe card/component
+* Increase contrast on barrel, ticks, liquid fill, and plunger
+* Make it feel more tactile and instrument-like
+* Improve physical readability at a glance
+* The syringe should feel like one of the hero elements of the app, not a small secondary diagram
+
+3. Tighten the layout
+
+* Reduce dead space across the screen by roughly 10–15%
+* Compress vertical spacing between cards and sections
+* Make the page feel denser, calmer, and more exact
+* The UI should feel like a precision operator tool, not a sparse landing page
+
+4. Improve the Recent Log panel
+
+* The current Recent Log card feels too empty and passive
+* Redesign the empty state so it feels useful, intentional, and alive
+* After a dose is logged, the card should immediately show a clean recent-entry format with timestamp, compound, and units
+* Make this section feel like an active part of the workflow, not filler
+
+5. Refine the information architecture of the results card
+
+* The big “Draw Amount” number is strong; preserve it
+* Improve the supporting metrics so the labels are unambiguous and pharmacology-specific
+* Replace vague labels like “Concentration” and “Strength” with clearer labels such as:
+
+  * Units to Draw
+  * mcg per Unit
+  * mg per mL
+* Keep the formula available, but make it feel cleaner and more deliberate
+* Hide it by default if necessary, then reveal it with a crisp toggle interaction
+
+6. Improve the form controls
+
+* Inputs are decent but still slightly generic
+* Refine input styling so it feels more custom, premium, and technical
+* Improve focus states, selected states, label contrast, and overall polish
+* Make unit suffixes/toggles feel integrated into the control system, not bolted on
+
+7. Refine the top navigation
+
+* The current nav is clean but not distinctive enough
+* Improve the active tab state so it feels more precise and premium
+* Keep the glow language, but make it feel sharper and more intentional
+* Keep the nav minimal, sharp, and instrument-like
+
+8. Keep the glows, but make them disciplined
+
+* Preserve the neon cyan glow language across the UI
+* Do not strip out the glow aesthetic
+* Use glow to heighten the premium cyber-medical mood
+* Make the glows feel controlled, deliberate, and elegant rather than messy or accidental
+* Strong glow is welcome on:
+
+  * active tab
+  * primary result card
+  * primary CTA
+  * syringe/liquid accent
+* Secondary cards can still glow subtly, but maintain hierarchy
+
+9. Strengthen the product loop visually
+   The screen should strongly communicate this flow:
+
+* set parameters
+* get exact draw amount instantly
+* log with confidence
+
+Everything on the screen should support that loop. Any element that weakens it should be reduced, redesigned, or subordinated.
+
+Design direction to preserve:
+
+* Dark charcoal background
+* Neon cyan accent
+* Glow-heavy premium cyber-medical aesthetic
+* Clean, serious, not playful
+* No decorative clutter
+* No generic startup-dashboard feel
+
+Deliverables:
+
+* Update layout and spacing
+* Fix syringe animation and improve syringe visual hierarchy
+* Improve Recent Log card and empty state
+* Refine result card labels and hierarchy
+* Improve form input polish
+* Refine navigation
+* Preserve and discipline the glow aesthetic
+* Keep the overall app structure lean and fast
+
+Success criteria:
+
+* The UI feels denser, sharper, and more inevitable
+* The syringe animation feels physically correct
+* The math feels calm, trustworthy, and immediate
+* The app feels like a premium glowing tool, not a mockup
