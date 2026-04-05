@@ -11,6 +11,13 @@ import {
   encryptPayload,
   decryptPayload,
 } from "@/lib/crypto";
+import {
+  encryptForCloud,
+  decryptFromCloud,
+  uploadBlob,
+  downloadBlob,
+  fetchTier,
+} from "@/lib/cloudSync";
 
 // ─── Data types ───────────────────────────────────────────────────────────────
 
@@ -150,15 +157,31 @@ interface InjectionSiteActions {
   clearInjectionSite: (siteId: string) => void;
 }
 
+interface TierState {
+  tier: "free" | "pro";
+  cloudSyncing: boolean;
+  signedInUserId: string | null;
+}
+
+interface TierActions {
+  setTier: (tier: "free" | "pro") => void;
+  setSignedInUserId: (userId: string | null) => void;
+  refreshTier: () => Promise<void>;
+  syncToCloud: (userId: string) => Promise<void>;
+  syncFromCloud: (userId: string) => Promise<boolean>;
+}
+
 type ProtocolStore = CalculatorState &
   LockMeta &
   RuntimeState &
+  TierState &
   CalculatorActions &
   LockActions &
   LogsActions &
   ProtocolActions &
   TemplateActions &
-  InjectionSiteActions;
+  InjectionSiteActions &
+  TierActions;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -276,6 +299,11 @@ export const useProtocolStore = create<ProtocolStore>()(
         protocols: [],
         templates: [],
         injectionSites: [],
+
+        // ── Tier + cloud sync ──
+        tier: "free",
+        cloudSyncing: false,
+        signedInUserId: null,
 
         // ── Calculator actions ──
         setCompound: (id) => {
@@ -530,6 +558,57 @@ export const useProtocolStore = create<ProtocolStore>()(
             injectionSites: state.injectionSites.filter((s) => s.siteId !== siteId),
           }));
           syncSensitive();
+        },
+
+        // ── Tier + cloud sync actions ──
+        setTier: (tier) => set({ tier }),
+        setSignedInUserId: (userId) => set({ signedInUserId: userId }),
+
+        refreshTier: async () => {
+          const tier = await fetchTier();
+          set({ tier });
+        },
+
+        syncToCloud: async (userId) => {
+          const state = get();
+          set({ cloudSyncing: true });
+          try {
+            const payload: SensitivePayload = {
+              entries: state.entries,
+              protocols: state.protocols,
+              templates: state.templates,
+              injectionSites: state.injectionSites,
+            };
+            const blob = await encryptForCloud(userId, payload);
+            await uploadBlob(blob);
+          } catch {
+            // Sync failure is non-fatal
+          } finally {
+            set({ cloudSyncing: false });
+          }
+        },
+
+        syncFromCloud: async (userId) => {
+          set({ cloudSyncing: true });
+          try {
+            const blob = await downloadBlob();
+            if (!blob) return false;
+
+            const payload = await decryptFromCloud<SensitivePayload>(userId, blob);
+            if (!payload?.entries) return false;
+
+            set({
+              entries: payload.entries ?? [],
+              protocols: payload.protocols ?? [],
+              templates: payload.templates ?? [],
+              injectionSites: payload.injectionSites ?? [],
+            });
+            return true;
+          } catch {
+            return false;
+          } finally {
+            set({ cloudSyncing: false });
+          }
         },
       };
     },

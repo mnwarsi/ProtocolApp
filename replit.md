@@ -28,7 +28,7 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
 
 ## Protocol App (`artifacts/protocol`)
 
-**Stage 1 + Stage 2 + Stage 3 — complete.**
+**Stage 1 + Stage 2 + Stage 3 + Stage 4 (in progress) — Auth/Paywall/Cloud Sync.**
 
 A premium local-first dark-mode PWA for high-performance biohackers managing research compound protocols.
 
@@ -38,7 +38,7 @@ A premium local-first dark-mode PWA for high-performance biohackers managing res
 - Always dark — `color-scheme: dark` globally set
 - No shadcn UI — all components hand-built; `src/components/ui/` deleted
 
-### Architecture (Stage 3)
+### Architecture (Stage 4)
 - Frontend: local-first PWA; backend now touched for OAuth + data proxy
 - State: Zustand + `persist` → `protocol-storage` key (calculator + lock meta only)
 - Sensitive data: `protocol-plain` or `protocol-encrypted` (AES-GCM) in localStorage
@@ -53,7 +53,7 @@ A premium local-first dark-mode PWA for high-performance biohackers managing res
 - `src/lib/crypto.ts` — Web Crypto AES-256-GCM + PBKDF2 (200k iterations)
 - `src/lib/export.ts` — CSV + JSON export
 - `src/lib/compoundColor.ts` — deterministic neon palette per compound ID
-- `src/store/protocolStore.ts` — Zustand store: calculator, lock/session, entries, protocols, templates, injectionSites
+- `src/store/protocolStore.ts` — Zustand store: calculator, lock/session, entries, protocols, templates, injectionSites, tier/cloudSync
 - `src/pages/ProtocolApp.tsx` — root page; 6 child slots for AppShell (Calculator+Syringe+Log+Protocol+Bio+Settings)
 - `src/components/AppShell.tsx` — header + 5-tab nav (Calculator / Log / Protocol / Bio / Settings)
 - `src/components/CalculatorPanel.tsx` — calculator + 2-step Log Dose flow with symptom check-in (tags + free text note)
@@ -62,7 +62,10 @@ A premium local-first dark-mode PWA for high-performance biohackers managing res
 - `src/components/ProtocolPanel.tsx` — protocol manager: next-dose, inventory, washout bar, template CRUD
 - `src/components/BiofeedbackPanel.tsx` — Recharts ComposedChart (HRV/recovery/RHR/sleep); dose ReferenceLine markers; calls `/api/wearable/data`
 - `src/components/InjectionSiteMap.tsx` — SVG body map (front/back), named tap zones, recency color-grading
-- `src/components/SettingsPanel.tsx` — Whoop OAuth connect/disconnect, connection status, demo mode info
+- `src/components/SettingsPanel.tsx` — Clerk auth (sign in/out), tier display, upgrade flow, Whoop OAuth, privacy info
+- `src/lib/cloudSync.ts` — AES-GCM cloud encryption, upload/download blob, fetchTier API calls
+- `src/components/UpgradePrompt.tsx` — inline Pro upgrade CTA component
+- `src/components/InstallPrompt.tsx` — PWA install prompt (beforeinstallprompt + iOS guide)
 - `src/components/LockScreen.tsx` — passphrase unlock UI
 - `artifacts/api-server/src/routes/wearable.ts` — Whoop OAuth connect/callback/status/data/disconnect routes
 
@@ -98,5 +101,15 @@ A premium local-first dark-mode PWA for high-performance biohackers managing res
 ### formatUnits rule
 - `units < 1` → `.toFixed(2)`, `units >= 1` → `.toFixed(1)` — never use Math.round
 
+### Stage 4: Auth, Paywall & Cloud Sync (In Progress)
+- Clerk authentication — optional, sign in/out in Settings tab
+- Freemium gating: free=1 protocol + no Bio tab; Pro ($19.99/mo) = unlimited + all features
+- Cloud sync: AES-GCM encrypted, key = PBKDF2(userId, "protocol-cloud-v1") — zero-knowledge
+- Debounced cloud sync (3s) on every mutation when signed in
+- Stripe subscriptions via stripe-replit-sync (gracefully disabled if no STRIPE_SECRET_KEY)
+- Backend: `/api/subscription/*`, `/api/sync/blob`, Clerk middleware on Express
+- DB tables: `users`, `cloud_blobs` (PostgreSQL, Drizzle)
+- PWA install prompt: beforeinstallprompt (Android/Chrome) + iOS guide
+
 ### Roadmap
-- Stage 4: Auth, Stripe paywall, cloud sync, DB-persisted wearable tokens
+- Remaining Stage 4: seed script for Stripe product, export gating for free tier

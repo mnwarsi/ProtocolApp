@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useProtocolStore, type ActiveProtocol } from "@/store/protocolStore";
 import { COMPOUNDS, FREQUENCY_OPTIONS, getCompoundById } from "@/data/compounds";
+import UpgradePrompt from "@/components/UpgradePrompt";
 import {
   estimateWashoutDate,
   formatRelativeTime,
@@ -545,12 +546,13 @@ function SecurityPanel() {
 // ─── Main ProtocolPanel ───────────────────────────────────────────────────────
 
 export default function ProtocolPanel() {
-  const { protocols, templates, entries, saveTemplate, loadTemplate, deleteTemplate, renameTemplate, duplicateTemplate } =
+  const { protocols, templates, entries, tier, saveTemplate, loadTemplate, deleteTemplate, renameTemplate, duplicateTemplate } =
     useProtocolStore();
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [showSecurity, setShowSecurity] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
+  const [showUpgrade, setShowUpgrade] = useState(false);
   const [templateName, setTemplateName] = useState("");
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -571,7 +573,14 @@ export default function ProtocolPanel() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => { setShowAddForm((v) => !v); setShowTemplates(false); }}
+            onClick={() => {
+              if (tier !== "pro" && protocols.length >= 1) {
+                setShowUpgrade(true);
+                return;
+              }
+              setShowAddForm((v) => !v);
+              setShowTemplates(false);
+            }}
             className={cn(
               "flex items-center gap-1 text-[10px] uppercase tracking-widest px-2.5 py-1 rounded border transition-colors",
               showAddForm
@@ -584,6 +593,15 @@ export default function ProtocolPanel() {
           </button>
         </div>
       </div>
+
+      {/* Free tier upgrade prompt */}
+      {showUpgrade && (
+        <UpgradePrompt
+          feature="Multiple Protocols"
+          description="Protocol Pro lets you track unlimited compounds simultaneously. Upgrade to add more protocols and unlock the Biofeedback tab."
+          onDismiss={() => setShowUpgrade(false)}
+        />
+      )}
 
       {/* Add form */}
       {showAddForm && <AddProtocolForm onClose={() => setShowAddForm(false)} />}

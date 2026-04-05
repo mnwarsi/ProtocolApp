@@ -31,6 +31,7 @@
     "wouter": "^3.3.5"
   },
   "dependencies": {
+    "@clerk/react": "^6.1.4",
     "recharts": "^2.15.4",
     "zustand": "^5.0.12"
   }
