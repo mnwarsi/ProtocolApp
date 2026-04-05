@@ -43,26 +43,32 @@ export default function AppShell({ children }: AppShellProps) {
       </header>
 
       <main className="flex-1 w-full max-w-5xl mx-auto p-4 md:p-6 pb-24 md:pb-6 flex flex-col md:flex-row gap-6">
-        <div className={cn("w-full space-y-6", activeTab === "calculator" ? "block" : "hidden md:block md:w-1/2")}>
-          <div className={cn(activeTab === "calculator" ? "block" : "hidden md:block")}>
-            {childArray.slice(0, 2)}
-          </div>
-        </div>
+        {activeTab !== "protocol" && (
+          <>
+            <div className={cn(
+              "w-full space-y-6",
+              activeTab === "calculator" ? "block" : "hidden md:block md:w-1/2"
+            )}>
+              {childArray.slice(0, 2)}
+            </div>
 
-        <div className={cn("w-full space-y-6", activeTab === "log" ? "block" : "hidden md:block md:w-1/2")}>
-          <div className={cn(activeTab === "log" ? "block" : "hidden md:block")}>
-            {childArray[2] ?? null}
-          </div>
-        </div>
+            <div className={cn(
+              "w-full space-y-6",
+              activeTab === "log" ? "block" : "hidden md:block md:w-1/2"
+            )}>
+              {childArray[2] ?? null}
+            </div>
+          </>
+        )}
 
-        <div className={cn("w-full", activeTab === "protocol" ? "block" : "hidden")}>
-          <div className="flex flex-col items-center justify-center h-48 gap-3 border border-dashed border-border rounded-lg text-muted-foreground">
+        {activeTab === "protocol" && (
+          <div className="w-full flex flex-col items-center justify-center h-48 gap-3 border border-dashed border-border rounded-lg text-muted-foreground">
             <p className="font-mono text-xs uppercase tracking-widest">Coming in Stage 2</p>
             <p className="text-xs text-muted-foreground/60 text-center max-w-xs">
               Active protocol tracking, washout timers, and scheduling — available in the next release.
             </p>
           </div>
-        </div>
+        )}
       </main>
 
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around h-16 border-t border-border/50 bg-background/90 backdrop-blur-md">

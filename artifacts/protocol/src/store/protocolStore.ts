@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { DoseUnit, FrequencyKey } from "@/data/compounds";
+import { getCompoundById } from "@/data/compounds";
 import { calculate, type ReconstitutionResult } from "@/lib/mathEngine";
 
 export interface DoseLogEntry {
@@ -74,7 +75,18 @@ export const useProtocolStore = create<ProtocolStore>()(
       entries: [],
 
       setCompound: (id) => {
-        set({ selectedCompoundId: id });
+        const compound = getCompoundById(id);
+        if (compound) {
+          set({
+            selectedCompoundId: id,
+            vialSizeMg: compound.defaultVialSizeMg,
+            waterVolumeMl: compound.defaultWaterVolumeMl,
+            targetDose: compound.defaultDose,
+            targetDoseUnit: compound.defaultDoseUnit,
+          });
+        } else {
+          set({ selectedCompoundId: id });
+        }
         get().recalculate();
       },
 

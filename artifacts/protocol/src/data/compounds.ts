@@ -17,7 +17,9 @@ export interface Compound {
   name: string;
   shortName: string;
   commonVialSizes: number[];
+  defaultVialSizeMg: number;
   commonWaterVolumes: number[];
+  defaultWaterVolumeMl: number;
   halfLifeHours: number;
   defaultDose: number;
   defaultDoseUnit: DoseUnit;
@@ -39,7 +41,9 @@ export const COMPOUNDS: Compound[] = [
     name: "BPC-157",
     shortName: "BPC",
     commonVialSizes: [2, 5, 10],
+    defaultVialSizeMg: 5,
     commonWaterVolumes: [1, 2],
+    defaultWaterVolumeMl: 1,
     halfLifeHours: 4,
     defaultDose: 250,
     defaultDoseUnit: "mcg",
@@ -51,7 +55,9 @@ export const COMPOUNDS: Compound[] = [
     name: "TB-500",
     shortName: "TB",
     commonVialSizes: [2, 5, 10],
+    defaultVialSizeMg: 5,
     commonWaterVolumes: [1, 2],
+    defaultWaterVolumeMl: 2,
     halfLifeHours: 96,
     defaultDose: 2,
     defaultDoseUnit: "mg",
@@ -63,7 +69,9 @@ export const COMPOUNDS: Compound[] = [
     name: "Semaglutide",
     shortName: "Sema",
     commonVialSizes: [2, 3, 5],
+    defaultVialSizeMg: 3,
     commonWaterVolumes: [1, 2],
+    defaultWaterVolumeMl: 1,
     halfLifeHours: 168,
     defaultDose: 0.25,
     defaultDoseUnit: "mg",
@@ -75,7 +83,9 @@ export const COMPOUNDS: Compound[] = [
     name: "CJC-1295",
     shortName: "CJC",
     commonVialSizes: [2, 5],
+    defaultVialSizeMg: 2,
     commonWaterVolumes: [1, 2],
+    defaultWaterVolumeMl: 1,
     halfLifeHours: 192,
     defaultDose: 1,
     defaultDoseUnit: "mg",
@@ -87,7 +97,9 @@ export const COMPOUNDS: Compound[] = [
     name: "Ipamorelin",
     shortName: "Ipa",
     commonVialSizes: [2, 5],
+    defaultVialSizeMg: 2,
     commonWaterVolumes: [1, 2],
+    defaultWaterVolumeMl: 1,
     halfLifeHours: 2,
     defaultDose: 200,
     defaultDoseUnit: "mcg",
@@ -99,7 +111,9 @@ export const COMPOUNDS: Compound[] = [
     name: "PT-141",
     shortName: "PT",
     commonVialSizes: [10],
+    defaultVialSizeMg: 10,
     commonWaterVolumes: [2],
+    defaultWaterVolumeMl: 2,
     halfLifeHours: 12,
     defaultDose: 1,
     defaultDoseUnit: "mg",
