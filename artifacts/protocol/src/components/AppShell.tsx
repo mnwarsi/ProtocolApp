@@ -81,31 +81,22 @@ export default function AppShell({ children }: AppShellProps) {
       </header>
 
       {/* ── Main content ── */}
-      <main className="flex-1 w-full max-w-5xl mx-auto p-4 md:p-5 pb-24 md:pb-5 flex flex-col md:flex-row gap-4">
-        {activeTab !== "protocol" && (
-          <>
-            <div
-              className={cn(
-                "w-full space-y-4",
-                activeTab === "calculator" ? "block" : "hidden md:block md:w-1/2"
-              )}
-            >
-              {childArray.slice(0, 2)}
-            </div>
+      <main className="flex-1 w-full max-w-xl mx-auto p-4 md:p-5 pb-24 md:pb-6">
+        {activeTab === "calculator" && (
+          <div className="space-y-4">
+            {childArray[0]}
+            {childArray[1]}
+          </div>
+        )}
 
-            <div
-              className={cn(
-                "w-full",
-                activeTab === "log" ? "block" : "hidden md:block md:w-1/2"
-              )}
-            >
-              {childArray[2] ?? null}
-            </div>
-          </>
+        {activeTab === "log" && (
+          <div>
+            {childArray[2] ?? null}
+          </div>
         )}
 
         {activeTab === "protocol" && (
-          <div className="w-full">
+          <div>
             {childArray[3] ?? (
               <div className="flex flex-col items-center justify-center h-64 gap-3 border border-dashed border-[#1e1e1e] rounded-xl text-muted-foreground">
                 <Activity className="w-6 h-6 text-muted-foreground/20" />
