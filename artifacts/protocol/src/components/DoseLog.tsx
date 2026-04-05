@@ -76,7 +76,7 @@ export default function DoseLog() {
                     <button
                       data-testid={`btn-delete-entry-${entry.id}`}
                       onClick={() => deleteEntry(entry.id)}
-                      className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-all p-1"
+                      className="text-muted-foreground hover:text-destructive md:opacity-0 md:group-hover:opacity-100 transition-all p-1"
                       title="Delete entry"
                     >
                       <Trash2 className="w-4 h-4" />

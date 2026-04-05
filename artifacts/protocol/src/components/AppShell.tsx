@@ -56,8 +56,11 @@ export default function AppShell({ children }: AppShellProps) {
         </div>
 
         <div className={cn("w-full", activeTab === "protocol" ? "block" : "hidden")}>
-          <div className="flex items-center justify-center h-48 border border-dashed border-border rounded-lg text-muted-foreground">
-            <p className="font-mono text-sm">PROTOCOL_MODULE_OFFLINE</p>
+          <div className="flex flex-col items-center justify-center h-48 gap-3 border border-dashed border-border rounded-lg text-muted-foreground">
+            <p className="font-mono text-xs uppercase tracking-widest">Coming in Stage 2</p>
+            <p className="text-xs text-muted-foreground/60 text-center max-w-xs">
+              Active protocol tracking, washout timers, and scheduling — available in the next release.
+            </p>
           </div>
         </div>
       </main>
