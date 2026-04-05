@@ -66,3 +66,78 @@ export const WearableDataResponse = zod.object({
   ),
   source: zod.string().describe("demo | whoop"),
 });
+
+/**
+ * Returns the authenticated user's subscription tier (free or pro)
+ * @summary Get subscription tier
+ */
+export const GetSubscriptionStatusResponse = zod.object({
+  tier: zod.enum(["free", "pro"]),
+});
+
+/**
+ * Creates a Stripe Checkout session for upgrading to Pro. priceId is optional — backend resolves from catalog if omitted.
+ * @summary Create Stripe Checkout session
+ */
+export const CreateCheckoutSessionBody = zod.object({
+  priceId: zod
+    .string()
+    .optional()
+    .describe("Optional Stripe price ID; backend resolves if omitted"),
+});
+
+export const CreateCheckoutSessionResponse = zod.object({
+  url: zod.string().describe("Stripe Checkout session URL to redirect to"),
+});
+
+/**
+ * Returns a URL to the Stripe billing portal for managing the subscription
+ * @summary Create Stripe customer portal session
+ */
+export const CreatePortalSessionResponse = zod.object({
+  url: zod.string().describe("Stripe customer portal URL"),
+});
+
+/**
+ * Returns the active Stripe price ID and amount for Protocol Pro
+ * @summary Get Protocol Pro price info
+ */
+export const GetProPriceResponse = zod.object({
+  priceId: zod.string().nullish(),
+  amount: zod.number(),
+  currency: zod.string(),
+});
+
+/**
+ * Returns (or creates) a random server-side salt used in client-side key derivation for cloud sync
+ * @summary Get per-user encryption salt
+ */
+export const GetSyncSaltResponse = zod.object({
+  salt: zod
+    .string()
+    .describe("Per-user random hex salt for client-side key derivation"),
+});
+
+/**
+ * Downloads the user's encrypted sync blob from the server. Requires Pro subscription.
+ * @summary Download encrypted sync blob (Pro only)
+ */
+export const DownloadBlobResponse = zod.object({
+  blob: zod
+    .string()
+    .nullish()
+    .describe("Base64-encoded AES-GCM encrypted payload"),
+});
+
+/**
+ * Uploads the user's AES-GCM encrypted sync blob. Requires Pro subscription.
+ * @summary Upload encrypted sync blob (Pro only)
+ */
+export const UploadBlobBody = zod.object({
+  blob: zod.string().describe("Base64-encoded AES-GCM encrypted payload"),
+});
+
+export const UploadBlobResponse = zod.object({
+  ok: zod.boolean(),
+  updatedAt: zod.string(),
+});

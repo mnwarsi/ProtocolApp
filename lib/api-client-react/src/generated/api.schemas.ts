@@ -33,6 +33,59 @@ export interface ErrorResponse {
   error: string;
 }
 
+export type SubscriptionStatusTier =
+  (typeof SubscriptionStatusTier)[keyof typeof SubscriptionStatusTier];
+
+export const SubscriptionStatusTier = {
+  free: "free",
+  pro: "pro",
+} as const;
+
+export interface SubscriptionStatus {
+  tier: SubscriptionStatusTier;
+}
+
+export interface CheckoutRequest {
+  /** Optional Stripe price ID; backend resolves if omitted */
+  priceId?: string;
+}
+
+export interface CheckoutResponse {
+  /** Stripe Checkout session URL to redirect to */
+  url: string;
+}
+
+export interface PortalResponse {
+  /** Stripe customer portal URL */
+  url: string;
+}
+
+export interface PriceResponse {
+  priceId?: string | null;
+  amount: number;
+  currency: string;
+}
+
+export interface SaltResponse {
+  /** Per-user random hex salt for client-side key derivation */
+  salt: string;
+}
+
+export interface BlobResponse {
+  /** Base64-encoded AES-GCM encrypted payload */
+  blob?: string | null;
+}
+
+export interface BlobUploadRequest {
+  /** Base64-encoded AES-GCM encrypted payload */
+  blob: string;
+}
+
+export interface BlobUploadResponse {
+  ok: boolean;
+  updatedAt: string;
+}
+
 export type WearableCallbackParams = {
   code?: string;
   error?: string;

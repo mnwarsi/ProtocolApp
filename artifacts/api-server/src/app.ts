@@ -59,7 +59,25 @@ if (isStripeConfigured()) {
   );
 }
 
-app.use(cors({ credentials: true, origin: true }));
+const allowedOrigins = process.env.REPLIT_DOMAINS
+  ? process.env.REPLIT_DOMAINS.split(",").flatMap((d) => [
+      `https://${d.trim()}`,
+      `https://${d.trim().replace(/^[^.]+\./, "")}`,
+    ])
+  : [];
+
+app.use(
+  cors({
+    credentials: true,
+    origin: (origin, cb) => {
+      if (!origin || allowedOrigins.some((o) => origin.startsWith(o))) {
+        cb(null, true);
+      } else {
+        cb(new Error("Not allowed by CORS"));
+      }
+    },
+  }),
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

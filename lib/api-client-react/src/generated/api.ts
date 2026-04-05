@@ -18,15 +18,24 @@ import type {
 
 import type {
   BiometricDataResponse,
+  BlobResponse,
+  BlobUploadRequest,
+  BlobUploadResponse,
+  CheckoutRequest,
+  CheckoutResponse,
   ErrorResponse,
   HealthStatus,
+  PortalResponse,
+  PriceResponse,
+  SaltResponse,
+  SubscriptionStatus,
   WearableCallbackParams,
   WearableDataParams,
   WearableStatus,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
-import type { ErrorType } from "../custom-fetch";
+import type { ErrorType, BodyType } from "../custom-fetch";
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -536,3 +545,563 @@ export function useWearableData<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * Returns the authenticated user's subscription tier (free or pro)
+ * @summary Get subscription tier
+ */
+export const getGetSubscriptionStatusUrl = () => {
+  return `/api/subscription/status`;
+};
+
+export const getSubscriptionStatus = async (
+  options?: RequestInit,
+): Promise<SubscriptionStatus> => {
+  return customFetch<SubscriptionStatus>(getGetSubscriptionStatusUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetSubscriptionStatusQueryKey = () => {
+  return [`/api/subscription/status`] as const;
+};
+
+export const getGetSubscriptionStatusQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSubscriptionStatus>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getSubscriptionStatus>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetSubscriptionStatusQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getSubscriptionStatus>>
+  > = ({ signal }) => getSubscriptionStatus({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSubscriptionStatus>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetSubscriptionStatusQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSubscriptionStatus>>
+>;
+export type GetSubscriptionStatusQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get subscription tier
+ */
+
+export function useGetSubscriptionStatus<
+  TData = Awaited<ReturnType<typeof getSubscriptionStatus>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getSubscriptionStatus>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSubscriptionStatusQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Creates a Stripe Checkout session for upgrading to Pro. priceId is optional — backend resolves from catalog if omitted.
+ * @summary Create Stripe Checkout session
+ */
+export const getCreateCheckoutSessionUrl = () => {
+  return `/api/subscription/checkout`;
+};
+
+export const createCheckoutSession = async (
+  checkoutRequest: CheckoutRequest,
+  options?: RequestInit,
+): Promise<CheckoutResponse> => {
+  return customFetch<CheckoutResponse>(getCreateCheckoutSessionUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(checkoutRequest),
+  });
+};
+
+export const getCreateCheckoutSessionMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createCheckoutSession>>,
+    TError,
+    { data: BodyType<CheckoutRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createCheckoutSession>>,
+  TError,
+  { data: BodyType<CheckoutRequest> },
+  TContext
+> => {
+  const mutationKey = ["createCheckoutSession"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createCheckoutSession>>,
+    { data: BodyType<CheckoutRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createCheckoutSession(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateCheckoutSessionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createCheckoutSession>>
+>;
+export type CreateCheckoutSessionMutationBody = BodyType<CheckoutRequest>;
+export type CreateCheckoutSessionMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Create Stripe Checkout session
+ */
+export const useCreateCheckoutSession = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createCheckoutSession>>,
+    TError,
+    { data: BodyType<CheckoutRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createCheckoutSession>>,
+  TError,
+  { data: BodyType<CheckoutRequest> },
+  TContext
+> => {
+  return useMutation(getCreateCheckoutSessionMutationOptions(options));
+};
+
+/**
+ * Returns a URL to the Stripe billing portal for managing the subscription
+ * @summary Create Stripe customer portal session
+ */
+export const getCreatePortalSessionUrl = () => {
+  return `/api/subscription/portal`;
+};
+
+export const createPortalSession = async (
+  options?: RequestInit,
+): Promise<PortalResponse> => {
+  return customFetch<PortalResponse>(getCreatePortalSessionUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getCreatePortalSessionMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createPortalSession>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createPortalSession>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["createPortalSession"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createPortalSession>>,
+    void
+  > = () => {
+    return createPortalSession(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreatePortalSessionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createPortalSession>>
+>;
+
+export type CreatePortalSessionMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create Stripe customer portal session
+ */
+export const useCreatePortalSession = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createPortalSession>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createPortalSession>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getCreatePortalSessionMutationOptions(options));
+};
+
+/**
+ * Returns the active Stripe price ID and amount for Protocol Pro
+ * @summary Get Protocol Pro price info
+ */
+export const getGetProPriceUrl = () => {
+  return `/api/subscription/price`;
+};
+
+export const getProPrice = async (
+  options?: RequestInit,
+): Promise<PriceResponse> => {
+  return customFetch<PriceResponse>(getGetProPriceUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetProPriceQueryKey = () => {
+  return [`/api/subscription/price`] as const;
+};
+
+export const getGetProPriceQueryOptions = <
+  TData = Awaited<ReturnType<typeof getProPrice>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getProPrice>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetProPriceQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getProPrice>>> = ({
+    signal,
+  }) => getProPrice({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getProPrice>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetProPriceQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getProPrice>>
+>;
+export type GetProPriceQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get Protocol Pro price info
+ */
+
+export function useGetProPrice<
+  TData = Awaited<ReturnType<typeof getProPrice>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getProPrice>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetProPriceQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Returns (or creates) a random server-side salt used in client-side key derivation for cloud sync
+ * @summary Get per-user encryption salt
+ */
+export const getGetSyncSaltUrl = () => {
+  return `/api/sync/salt`;
+};
+
+export const getSyncSalt = async (
+  options?: RequestInit,
+): Promise<SaltResponse> => {
+  return customFetch<SaltResponse>(getGetSyncSaltUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetSyncSaltQueryKey = () => {
+  return [`/api/sync/salt`] as const;
+};
+
+export const getGetSyncSaltQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSyncSalt>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getSyncSalt>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetSyncSaltQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getSyncSalt>>> = ({
+    signal,
+  }) => getSyncSalt({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSyncSalt>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetSyncSaltQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSyncSalt>>
+>;
+export type GetSyncSaltQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get per-user encryption salt
+ */
+
+export function useGetSyncSalt<
+  TData = Awaited<ReturnType<typeof getSyncSalt>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getSyncSalt>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSyncSaltQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Downloads the user's encrypted sync blob from the server. Requires Pro subscription.
+ * @summary Download encrypted sync blob (Pro only)
+ */
+export const getDownloadBlobUrl = () => {
+  return `/api/sync/blob`;
+};
+
+export const downloadBlob = async (
+  options?: RequestInit,
+): Promise<BlobResponse> => {
+  return customFetch<BlobResponse>(getDownloadBlobUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getDownloadBlobQueryKey = () => {
+  return [`/api/sync/blob`] as const;
+};
+
+export const getDownloadBlobQueryOptions = <
+  TData = Awaited<ReturnType<typeof downloadBlob>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof downloadBlob>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getDownloadBlobQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadBlob>>> = ({
+    signal,
+  }) => downloadBlob({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof downloadBlob>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type DownloadBlobQueryResult = NonNullable<
+  Awaited<ReturnType<typeof downloadBlob>>
+>;
+export type DownloadBlobQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Download encrypted sync blob (Pro only)
+ */
+
+export function useDownloadBlob<
+  TData = Awaited<ReturnType<typeof downloadBlob>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof downloadBlob>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getDownloadBlobQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Uploads the user's AES-GCM encrypted sync blob. Requires Pro subscription.
+ * @summary Upload encrypted sync blob (Pro only)
+ */
+export const getUploadBlobUrl = () => {
+  return `/api/sync/blob`;
+};
+
+export const uploadBlob = async (
+  blobUploadRequest: BlobUploadRequest,
+  options?: RequestInit,
+): Promise<BlobUploadResponse> => {
+  return customFetch<BlobUploadResponse>(getUploadBlobUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(blobUploadRequest),
+  });
+};
+
+export const getUploadBlobMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof uploadBlob>>,
+    TError,
+    { data: BodyType<BlobUploadRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof uploadBlob>>,
+  TError,
+  { data: BodyType<BlobUploadRequest> },
+  TContext
+> => {
+  const mutationKey = ["uploadBlob"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof uploadBlob>>,
+    { data: BodyType<BlobUploadRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return uploadBlob(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UploadBlobMutationResult = NonNullable<
+  Awaited<ReturnType<typeof uploadBlob>>
+>;
+export type UploadBlobMutationBody = BodyType<BlobUploadRequest>;
+export type UploadBlobMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Upload encrypted sync blob (Pro only)
+ */
+export const useUploadBlob = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof uploadBlob>>,
+    TError,
+    { data: BodyType<BlobUploadRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof uploadBlob>>,
+  TError,
+  { data: BodyType<BlobUploadRequest> },
+  TContext
+> => {
+  return useMutation(getUploadBlobMutationOptions(options));
+};

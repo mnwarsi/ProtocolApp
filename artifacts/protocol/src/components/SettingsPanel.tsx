@@ -7,6 +7,8 @@ import { useAuth, useUser, SignOutButton } from "@clerk/react";
 import { useProtocolStore } from "@/store/protocolStore";
 import { cn } from "@/lib/utils";
 
+const HAS_CLERK = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 interface WearableStatus {
@@ -24,7 +26,7 @@ function apiUrl(path: string): string {
 
 // ── Auth section ───────────────────────────────────────────────────────────────
 
-function AuthCard() {
+function AuthCardClerk() {
   const { isSignedIn, isLoaded } = useAuth();
   const { user } = useUser();
   const { tier, cloudSyncing, syncToCloud } = useProtocolStore();
@@ -134,10 +136,26 @@ function AuthCard() {
   );
 }
 
+function AuthCard() {
+  if (!HAS_CLERK) {
+    return (
+      <div className="border border-[#1e1e1e] rounded-xl p-4 bg-[#0c0c0c] space-y-2">
+        <div className="flex items-center gap-2">
+          <User className="w-3.5 h-3.5 text-muted-foreground/40" />
+          <span className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-widest">Account</span>
+        </div>
+        <p className="text-[10px] text-muted-foreground/30 font-mono">
+          Auth not configured — running in local-only mode.
+        </p>
+      </div>
+    );
+  }
+  return <AuthCardClerk />;
+}
+
 // ── Upgrade card ────────────────────────────────────────────────────────────────
 
-function UpgradeCard() {
-  const { isSignedIn } = useAuth();
+function UpgradeCardInner({ isSignedIn }: { isSignedIn: boolean }) {
   const { tier } = useProtocolStore();
   const [loading, setLoading] = useState(false);
 
@@ -211,6 +229,16 @@ function UpgradeCard() {
       )}
     </div>
   );
+}
+
+function UpgradeCardClerk() {
+  const { isSignedIn } = useAuth();
+  return <UpgradeCardInner isSignedIn={!!isSignedIn} />;
+}
+
+function UpgradeCard() {
+  if (!HAS_CLERK) return <UpgradeCardInner isSignedIn={false} />;
+  return <UpgradeCardClerk />;
 }
 
 // ── Wearable section ───────────────────────────────────────────────────────────
