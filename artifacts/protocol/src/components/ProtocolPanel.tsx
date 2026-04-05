@@ -6,6 +6,8 @@ import {
   formatRelativeTime,
   getNextDoseTime,
   getHalfLifeLabel,
+  resolveIntervalHours,
+  washoutProgress,
 } from "@/lib/mathEngine";
 import { exportAsCSV, exportAsJSON } from "@/lib/export";
 import {
@@ -19,6 +21,10 @@ import {
   ToggleRight,
   Beaker,
   Timer,
+  Copy,
+  Pencil,
+  Check,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -28,26 +34,51 @@ function ProtocolCard({ protocol }: { protocol: ActiveProtocol }) {
   const { entries, removeProtocol, toggleProtocol } = useProtocolStore();
 
   const compound = getCompoundById(protocol.compoundId);
+
+  // All log entries for this compound, newest first
   const compoundEntries = entries
     .filter((e) => e.compoundId === protocol.compoundId)
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
   const lastDose = compoundEntries[0];
   const lastDoseDate = lastDose ? new Date(lastDose.timestamp) : null;
 
-  const nextDose = lastDoseDate ? getNextDoseTime(lastDoseDate, protocol.frequency) : null;
-  const isDue = nextDose ? nextDose <= new Date() : false;
+  // ── Next dose (pass customIntervalHours through)
+  const nextDose = lastDoseDate
+    ? getNextDoseTime(lastDoseDate, protocol.frequency, protocol.customIntervalHours)
+    : null;
+  const overdue = nextDose && nextDose <= new Date();
+  const overdueMs = overdue && nextDose ? Date.now() - nextDose.getTime() : 0;
 
+  // ── Washout
   const washoutDate =
     compound && lastDoseDate
       ? estimateWashoutDate(lastDoseDate, compound.halfLifeHours)
       : null;
+  const washoutPct =
+    compound && lastDoseDate
+      ? Math.round(washoutProgress(lastDoseDate, compound.halfLifeHours) * 100)
+      : 0;
+  const washoutDone = washoutPct >= 100;
 
+  // ── Inventory
   const shotsPerVial = compound
     ? Math.floor(
         (protocol.vialAmount * 1000) /
           (protocol.doseUnit === "mg" ? protocol.dose * 1000 : protocol.dose)
       )
     : null;
+  const dosesLogged = compoundEntries.length;
+  const shotsRemaining = shotsPerVial !== null ? Math.max(0, shotsPerVial - dosesLogged) : null;
+  const intervalHours = resolveIntervalHours(protocol.frequency, protocol.customIntervalHours);
+  const dosesPerDay = 24 / intervalHours;
+  const daysRemaining = shotsRemaining !== null && dosesPerDay > 0
+    ? Math.floor(shotsRemaining / dosesPerDay)
+    : null;
+  const depletionDate = daysRemaining !== null
+    ? new Date(Date.now() + daysRemaining * 86400_000)
+    : null;
+  const isLowStock = shotsRemaining !== null && shotsRemaining > 0 && shotsRemaining <= 3;
 
   return (
     <div
@@ -57,21 +88,20 @@ function ProtocolCard({ protocol }: { protocol: ActiveProtocol }) {
           ? "bg-[#0d1313] border-cyan/20 hover:border-cyan/30"
           : "bg-[#0a0a0a] border-[#1a1a1a] opacity-60"
       )}
-      style={
-        protocol.active
-          ? { boxShadow: "0 0 12px rgba(0,242,255,0.04)" }
-          : undefined
-      }
+      style={protocol.active ? { boxShadow: "0 0 12px rgba(0,242,255,0.04)" } : undefined}
     >
+      {/* Header row */}
       <div className="flex items-start justify-between gap-2 mb-3">
         <div>
           <div className="text-xs font-semibold text-foreground/90">
             {protocol.compound}
           </div>
           <div className="text-[10px] text-muted-foreground/60 font-mono mt-0.5">
-            {protocol.dose}
-            {protocol.doseUnit} ·{" "}
+            {protocol.dose}{protocol.doseUnit} ·{" "}
             {FREQUENCY_OPTIONS.find((f) => f.key === protocol.frequency)?.label ?? protocol.frequency}
+            {protocol.frequency === "custom" && protocol.customIntervalHours
+              ? ` (${protocol.customIntervalHours}h)`
+              : ""}
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -100,62 +130,119 @@ function ProtocolCard({ protocol }: { protocol: ActiveProtocol }) {
       </div>
 
       {protocol.active && (
-        <div className="grid grid-cols-2 gap-2 text-[10px]">
-          {/* Next Dose */}
-          <div className="bg-black/20 rounded-lg p-2">
-            <div className="text-muted-foreground/50 uppercase tracking-wider mb-1 flex items-center gap-1">
-              <Timer className="w-3 h-3" />
-              Next Dose
-            </div>
-            {nextDose ? (
-              <div
-                className={cn(
-                  "font-mono font-semibold",
-                  isDue ? "text-amber-400" : "text-foreground/80"
-                )}
-              >
-                {isDue ? "Due now" : formatRelativeTime(nextDose)}
+        <div className="space-y-2 text-[10px]">
+          {/* ── Next dose + last logged row ── */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-black/20 rounded-lg p-2">
+              <div className="text-muted-foreground/50 uppercase tracking-wider mb-1 flex items-center gap-1">
+                <Timer className="w-3 h-3" />
+                Next Dose
               </div>
-            ) : (
-              <div className="text-muted-foreground/40 font-mono">No doses logged</div>
-            )}
+              {nextDose ? (
+                <div>
+                  <div
+                    className={cn(
+                      "font-mono font-semibold leading-none",
+                      overdue ? "text-amber-400" : "text-foreground/80"
+                    )}
+                  >
+                    {overdue
+                      ? `Overdue ${formatRelativeTime(new Date(Date.now() - overdueMs)).replace(" ago", "")}`
+                      : formatRelativeTime(nextDose)}
+                  </div>
+                  <div className="text-muted-foreground/35 font-mono text-[8px] mt-0.5">
+                    {nextDose.toLocaleDateString("en-US", { month: "short", day: "numeric" })}{" "}
+                    {nextDose.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-muted-foreground/40 font-mono">Log first dose</div>
+              )}
+            </div>
+
+            <div className="bg-black/20 rounded-lg p-2">
+              <div className="text-muted-foreground/50 uppercase tracking-wider mb-1">Last Logged</div>
+              {lastDoseDate ? (
+                <div>
+                  <div className="font-mono text-foreground/70 leading-none">
+                    {formatRelativeTime(lastDoseDate)}
+                  </div>
+                  <div className="text-muted-foreground/35 font-mono text-[8px] mt-0.5">
+                    {lastDoseDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}{" "}
+                    {lastDoseDate.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-muted-foreground/40 font-mono">—</div>
+              )}
+            </div>
           </div>
 
-          {/* Washout */}
-          <div className="bg-black/20 rounded-lg p-2">
-            <div className="text-muted-foreground/50 uppercase tracking-wider mb-1">
-              Washout
+          {/* ── Inventory row ── */}
+          <div className="grid grid-cols-3 gap-2">
+            <div className="bg-black/20 rounded-lg p-2">
+              <div className="text-muted-foreground/50 uppercase tracking-wider mb-1">Remaining</div>
+              <div className={cn("font-mono font-semibold", isLowStock ? "text-amber-400" : "text-foreground/70")}>
+                {shotsRemaining !== null ? `${shotsRemaining}` : "—"}
+                <span className="text-muted-foreground/40 font-normal text-[8px] ml-0.5">shots</span>
+              </div>
+              {isLowStock && (
+                <div className="text-amber-400/70 text-[8px] font-mono mt-0.5">Low stock</div>
+              )}
             </div>
-            {washoutDate ? (
+
+            <div className="bg-black/20 rounded-lg p-2">
+              <div className="text-muted-foreground/50 uppercase tracking-wider mb-1">Days Left</div>
               <div className="font-mono text-foreground/70">
-                {formatRelativeTime(washoutDate)}
+                {daysRemaining !== null ? daysRemaining : "—"}
+                {daysRemaining !== null && <span className="text-muted-foreground/40 font-normal text-[8px] ml-0.5">d</span>}
               </div>
-            ) : (
-              <div className="text-muted-foreground/40 font-mono">
-                {compound ? `t½ ${getHalfLifeLabel(compound.halfLifeHours)}` : "—"}
-              </div>
-            )}
-          </div>
-
-          {/* Shots / vial */}
-          <div className="bg-black/20 rounded-lg p-2">
-            <div className="text-muted-foreground/50 uppercase tracking-wider mb-1">
-              Shots / Vial
             </div>
-            <div className="font-mono text-foreground/70">
-              {shotsPerVial ?? "—"}×
+
+            <div className="bg-black/20 rounded-lg p-2">
+              <div className="text-muted-foreground/50 uppercase tracking-wider mb-1">Depletes</div>
+              <div className="font-mono text-foreground/70 text-[9px] leading-tight">
+                {depletionDate
+                  ? depletionDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+                  : "—"}
+              </div>
             </div>
           </div>
 
-          {/* Doses logged */}
-          <div className="bg-black/20 rounded-lg p-2">
-            <div className="text-muted-foreground/50 uppercase tracking-wider mb-1">
-              Logged
+          {/* ── Washout clearance progress ── */}
+          {compound && (
+            <div className="bg-black/20 rounded-lg p-2 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <div className="text-muted-foreground/50 uppercase tracking-wider">
+                  Clearance — t½ {getHalfLifeLabel(compound.halfLifeHours)}
+                </div>
+                <span className={cn("font-mono font-semibold", washoutDone ? "text-cyan" : "text-foreground/60")}>
+                  {washoutPct}%
+                </span>
+              </div>
+              <div className="h-1 bg-black/40 rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{
+                    width: `${washoutPct}%`,
+                    background: washoutDone
+                      ? "rgba(0,242,255,0.7)"
+                      : "rgba(0,242,255,0.35)",
+                    boxShadow: washoutDone ? "0 0 6px rgba(0,242,255,0.5)" : undefined,
+                  }}
+                />
+              </div>
+              {washoutDate && !washoutDone && (
+                <div className="text-[8px] font-mono text-muted-foreground/30">
+                  Clears {washoutDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}{" "}
+                  · {formatRelativeTime(washoutDate)}
+                </div>
+              )}
+              {washoutDone && (
+                <div className="text-[8px] font-mono text-cyan/50">Fully cleared</div>
+              )}
             </div>
-            <div className="font-mono text-foreground/70">
-              {compoundEntries.length} doses
-            </div>
-          </div>
+          )}
         </div>
       )}
 
@@ -458,13 +545,15 @@ function SecurityPanel() {
 // ─── Main ProtocolPanel ───────────────────────────────────────────────────────
 
 export default function ProtocolPanel() {
-  const { protocols, templates, entries, saveTemplate, loadTemplate, deleteTemplate } =
+  const { protocols, templates, entries, saveTemplate, loadTemplate, deleteTemplate, renameTemplate, duplicateTemplate } =
     useProtocolStore();
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [showSecurity, setShowSecurity] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
   const [templateName, setTemplateName] = useState("");
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
 
   const activeProtocols = protocols.filter((p) => p.active);
   const pausedProtocols = protocols.filter((p) => !p.active);
@@ -593,31 +682,85 @@ export default function ProtocolPanel() {
             ) : (
               <div className="space-y-1.5">
                 {templates.map((t) => (
-                  <div key={t.id} className="flex items-center justify-between bg-[#0d0d0d] border border-[#1e1e1e] rounded-lg px-3 py-2">
-                    <div>
-                      <div className="text-xs text-foreground/80">{t.name}</div>
-                      <div className="text-[9px] text-muted-foreground/40 font-mono">
-                        {t.protocols.length} protocol{t.protocols.length !== 1 ? "s" : ""}
+                  <div key={t.id} className="bg-[#0d0d0d] border border-[#1e1e1e] rounded-lg px-3 py-2">
+                    {renamingId === t.id ? (
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          autoFocus
+                          type="text"
+                          value={renameValue}
+                          onChange={(e) => setRenameValue(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && renameValue.trim()) {
+                              renameTemplate(t.id, renameValue.trim());
+                              setRenamingId(null);
+                            } else if (e.key === "Escape") {
+                              setRenamingId(null);
+                            }
+                          }}
+                          className="flex-1 bg-[#111] border border-cyan/30 rounded px-2 py-1 text-xs font-mono text-foreground focus:outline-none focus:border-cyan/60 min-w-0"
+                        />
+                        <button
+                          onClick={() => {
+                            if (renameValue.trim()) {
+                              renameTemplate(t.id, renameValue.trim());
+                            }
+                            setRenamingId(null);
+                          }}
+                          className="text-cyan/60 hover:text-cyan transition-colors"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => setRenamingId(null)}
+                          className="text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => {
-                          if (window.confirm(`Load "${t.name}"? This replaces your current protocols.`)) {
-                            loadTemplate(t.id);
-                          }
-                        }}
-                        className="text-[10px] text-cyan/60 hover:text-cyan uppercase tracking-wider transition-colors"
-                      >
-                        Load
-                      </button>
-                      <button
-                        onClick={() => deleteTemplate(t.id)}
-                        className="text-muted-foreground/30 hover:text-destructive transition-colors"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    </div>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-xs text-foreground/80">{t.name}</div>
+                          <div className="text-[9px] text-muted-foreground/40 font-mono">
+                            {t.protocols.length} protocol{t.protocols.length !== 1 ? "s" : ""}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => {
+                              if (window.confirm(`Load "${t.name}"? This replaces your current protocols.`)) {
+                                loadTemplate(t.id);
+                              }
+                            }}
+                            className="text-[10px] text-cyan/60 hover:text-cyan uppercase tracking-wider transition-colors"
+                          >
+                            Load
+                          </button>
+                          <button
+                            onClick={() => duplicateTemplate(t.id)}
+                            title="Duplicate template"
+                            className="text-muted-foreground/30 hover:text-foreground/60 transition-colors"
+                          >
+                            <Copy className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={() => { setRenamingId(t.id); setRenameValue(t.name); }}
+                            title="Rename template"
+                            className="text-muted-foreground/30 hover:text-foreground/60 transition-colors"
+                          >
+                            <Pencil className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={() => deleteTemplate(t.id)}
+                            title="Delete template"
+                            className="text-muted-foreground/30 hover:text-destructive transition-colors"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
