@@ -108,8 +108,7 @@ export function calculate(inputs: ReconstitutionInputs): ReconstitutionResult {
 export function formatUnits(units: number): string {
   if (units === 0) return "0";
   if (units < 1) return units.toFixed(2);
-  if (units < 10) return units.toFixed(1);
-  return Math.round(units).toString();
+  return units.toFixed(1);
 }
 
 export function formatConcentration(value: number, decimals = 2): string {
