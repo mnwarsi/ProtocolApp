@@ -6,4 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./biometricDataPoint";
+export * from "./biometricDataResponse";
+export * from "./errorResponse";
 export * from "./healthStatus";
+export * from "./wearableCallbackParams";
+export * from "./wearableDataMetric";
+export * from "./wearableDataParams";
+export * from "./wearableStatus";

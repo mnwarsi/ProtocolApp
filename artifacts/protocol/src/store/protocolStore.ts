@@ -392,8 +392,8 @@ export const useProtocolStore = create<ProtocolStore>()(
             await decryptPayload(key, encryptedRaw);
           }
           // Passphrase verified — save current in-memory data as plaintext
-          const { entries, protocols, templates } = get();
-          savePlainPayload({ entries, protocols, templates });
+          const { entries, protocols, templates, injectionSites } = get();
+          savePlainPayload({ entries, protocols, templates, injectionSites });
           localStorage.removeItem(ENCRYPTED_STORAGE_KEY);
           clearAutoLockTimer();
           set({ hasPassphrase: false, saltBase64: null, sessionKey: null, isLocked: false });

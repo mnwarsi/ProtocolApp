@@ -8,3 +8,47 @@
 export interface HealthStatus {
   status: string;
 }
+
+export interface WearableStatus {
+  connected: boolean;
+  provider: string | null;
+  connectedAt: string | null;
+}
+
+export interface BiometricDataPoint {
+  /** ISO date string */
+  date: string;
+  value: number | null;
+  metric: string;
+}
+
+export interface BiometricDataResponse {
+  metric: string;
+  data: BiometricDataPoint[];
+  /** demo | whoop */
+  source: string;
+}
+
+export interface ErrorResponse {
+  error: string;
+}
+
+export type WearableCallbackParams = {
+  code?: string;
+  error?: string;
+};
+
+export type WearableDataParams = {
+  metric: WearableDataMetric;
+  days?: number;
+};
+
+export type WearableDataMetric =
+  (typeof WearableDataMetric)[keyof typeof WearableDataMetric];
+
+export const WearableDataMetric = {
+  hrv: "hrv",
+  recovery: "recovery",
+  rhr: "rhr",
+  sleep: "sleep",
+} as const;

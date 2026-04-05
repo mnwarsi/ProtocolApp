@@ -14,3 +14,55 @@ import * as zod from "zod";
 export const HealthCheckResponse = zod.object({
   status: zod.string(),
 });
+
+/**
+ * Handles OAuth callback, exchanges code for access token
+ * @summary OAuth callback
+ */
+export const WearableCallbackQueryParams = zod.object({
+  code: zod.coerce.string().optional(),
+  error: zod.coerce.string().optional(),
+});
+
+/**
+ * Returns whether a wearable is connected and provider info
+ * @summary Get connection status
+ */
+export const WearableStatusResponse = zod.object({
+  connected: zod.boolean(),
+  provider: zod.string().nullable(),
+  connectedAt: zod.string().nullable(),
+});
+
+/**
+ * Clears stored OAuth tokens
+ * @summary Disconnect wearable
+ */
+export const WearableDisconnectResponse = zod.object({
+  connected: zod.boolean(),
+  provider: zod.string().nullable(),
+  connectedAt: zod.string().nullable(),
+});
+
+/**
+ * Proxies data fetch from wearable provider API
+ * @summary Fetch biometric data
+ */
+export const wearableDataQueryDaysDefault = 30;
+
+export const WearableDataQueryParams = zod.object({
+  metric: zod.enum(["hrv", "recovery", "rhr", "sleep"]),
+  days: zod.coerce.number().default(wearableDataQueryDaysDefault),
+});
+
+export const WearableDataResponse = zod.object({
+  metric: zod.string(),
+  data: zod.array(
+    zod.object({
+      date: zod.string().describe("ISO date string"),
+      value: zod.number().nullable(),
+      metric: zod.string(),
+    }),
+  ),
+  source: zod.string().describe("demo | whoop"),
+});

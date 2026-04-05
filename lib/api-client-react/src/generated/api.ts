@@ -5,15 +5,25 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
+  MutationFunction,
   QueryFunction,
   QueryKey,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult,
 } from "@tanstack/react-query";
 
-import type { HealthStatus } from "./api.schemas";
+import type {
+  BiometricDataResponse,
+  ErrorResponse,
+  HealthStatus,
+  WearableCallbackParams,
+  WearableDataParams,
+  WearableStatus,
+} from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
 import type { ErrorType } from "../custom-fetch";
@@ -92,6 +102,433 @@ export function useHealthCheck<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getHealthCheckQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Redirects browser to wearable provider OAuth authorization page
+ * @summary Begin OAuth flow
+ */
+export const getWearableConnectUrl = () => {
+  return `/api/wearable/connect`;
+};
+
+export const wearableConnect = async (
+  options?: RequestInit,
+): Promise<unknown> => {
+  return customFetch<unknown>(getWearableConnectUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getWearableConnectQueryKey = () => {
+  return [`/api/wearable/connect`] as const;
+};
+
+export const getWearableConnectQueryOptions = <
+  TData = Awaited<ReturnType<typeof wearableConnect>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof wearableConnect>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getWearableConnectQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof wearableConnect>>> = ({
+    signal,
+  }) => wearableConnect({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof wearableConnect>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type WearableConnectQueryResult = NonNullable<
+  Awaited<ReturnType<typeof wearableConnect>>
+>;
+export type WearableConnectQueryError = ErrorType<void>;
+
+/**
+ * @summary Begin OAuth flow
+ */
+
+export function useWearableConnect<
+  TData = Awaited<ReturnType<typeof wearableConnect>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof wearableConnect>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getWearableConnectQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Handles OAuth callback, exchanges code for access token
+ * @summary OAuth callback
+ */
+export const getWearableCallbackUrl = (params?: WearableCallbackParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/wearable/callback?${stringifiedParams}`
+    : `/api/wearable/callback`;
+};
+
+export const wearableCallback = async (
+  params?: WearableCallbackParams,
+  options?: RequestInit,
+): Promise<unknown> => {
+  return customFetch<unknown>(getWearableCallbackUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getWearableCallbackQueryKey = (
+  params?: WearableCallbackParams,
+) => {
+  return [`/api/wearable/callback`, ...(params ? [params] : [])] as const;
+};
+
+export const getWearableCallbackQueryOptions = <
+  TData = Awaited<ReturnType<typeof wearableCallback>>,
+  TError = ErrorType<void>,
+>(
+  params?: WearableCallbackParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof wearableCallback>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getWearableCallbackQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof wearableCallback>>
+  > = ({ signal }) => wearableCallback(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof wearableCallback>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type WearableCallbackQueryResult = NonNullable<
+  Awaited<ReturnType<typeof wearableCallback>>
+>;
+export type WearableCallbackQueryError = ErrorType<void>;
+
+/**
+ * @summary OAuth callback
+ */
+
+export function useWearableCallback<
+  TData = Awaited<ReturnType<typeof wearableCallback>>,
+  TError = ErrorType<void>,
+>(
+  params?: WearableCallbackParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof wearableCallback>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getWearableCallbackQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Returns whether a wearable is connected and provider info
+ * @summary Get connection status
+ */
+export const getWearableStatusUrl = () => {
+  return `/api/wearable/status`;
+};
+
+export const wearableStatus = async (
+  options?: RequestInit,
+): Promise<WearableStatus> => {
+  return customFetch<WearableStatus>(getWearableStatusUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getWearableStatusQueryKey = () => {
+  return [`/api/wearable/status`] as const;
+};
+
+export const getWearableStatusQueryOptions = <
+  TData = Awaited<ReturnType<typeof wearableStatus>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof wearableStatus>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getWearableStatusQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof wearableStatus>>> = ({
+    signal,
+  }) => wearableStatus({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof wearableStatus>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type WearableStatusQueryResult = NonNullable<
+  Awaited<ReturnType<typeof wearableStatus>>
+>;
+export type WearableStatusQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get connection status
+ */
+
+export function useWearableStatus<
+  TData = Awaited<ReturnType<typeof wearableStatus>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof wearableStatus>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getWearableStatusQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Clears stored OAuth tokens
+ * @summary Disconnect wearable
+ */
+export const getWearableDisconnectUrl = () => {
+  return `/api/wearable/disconnect`;
+};
+
+export const wearableDisconnect = async (
+  options?: RequestInit,
+): Promise<WearableStatus> => {
+  return customFetch<WearableStatus>(getWearableDisconnectUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getWearableDisconnectMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof wearableDisconnect>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof wearableDisconnect>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["wearableDisconnect"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof wearableDisconnect>>,
+    void
+  > = () => {
+    return wearableDisconnect(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type WearableDisconnectMutationResult = NonNullable<
+  Awaited<ReturnType<typeof wearableDisconnect>>
+>;
+
+export type WearableDisconnectMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Disconnect wearable
+ */
+export const useWearableDisconnect = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof wearableDisconnect>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof wearableDisconnect>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getWearableDisconnectMutationOptions(options));
+};
+
+/**
+ * Proxies data fetch from wearable provider API
+ * @summary Fetch biometric data
+ */
+export const getWearableDataUrl = (params: WearableDataParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/wearable/data?${stringifiedParams}`
+    : `/api/wearable/data`;
+};
+
+export const wearableData = async (
+  params: WearableDataParams,
+  options?: RequestInit,
+): Promise<BiometricDataResponse> => {
+  return customFetch<BiometricDataResponse>(getWearableDataUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getWearableDataQueryKey = (params?: WearableDataParams) => {
+  return [`/api/wearable/data`, ...(params ? [params] : [])] as const;
+};
+
+export const getWearableDataQueryOptions = <
+  TData = Awaited<ReturnType<typeof wearableData>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params: WearableDataParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof wearableData>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getWearableDataQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof wearableData>>> = ({
+    signal,
+  }) => wearableData(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof wearableData>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type WearableDataQueryResult = NonNullable<
+  Awaited<ReturnType<typeof wearableData>>
+>;
+export type WearableDataQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Fetch biometric data
+ */
+
+export function useWearableData<
+  TData = Awaited<ReturnType<typeof wearableData>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params: WearableDataParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof wearableData>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getWearableDataQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;
