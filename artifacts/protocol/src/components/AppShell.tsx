@@ -4,7 +4,11 @@ import { cn } from "@/lib/utils";
 
 type Tab = "calculator" | "log" | "protocol";
 
-const TABS: Tab[] = ["calculator", "log", "protocol"];
+const TABS: { key: Tab; label: string }[] = [
+  { key: "calculator", label: "Calculator" },
+  { key: "log", label: "Log" },
+  { key: "protocol", label: "Protocol" },
+];
 
 interface AppShellProps {
   children: ReactNode;
@@ -17,79 +21,121 @@ export default function AppShell({ children }: AppShellProps) {
 
   return (
     <div className="min-h-[100dvh] flex flex-col bg-background text-foreground">
-      <header className="sticky top-0 z-50 flex items-center h-16 px-4 md:px-6 border-b border-border/50 bg-background/80 backdrop-blur-md">
-        <div className="flex items-center gap-2 text-cyan font-semibold tracking-wide">
-          <Activity className="w-5 h-5" />
-          <span>PROTOCOL</span>
+      {/* ── Header ── */}
+      <header className="sticky top-0 z-50 flex items-center h-14 px-4 md:px-6 border-b border-[#181818] bg-background/90 backdrop-blur-md">
+        {/* Logo */}
+        <div className="flex items-center gap-2 mr-8">
+          <Activity
+            className="w-4 h-4 text-cyan"
+            style={{ filter: "drop-shadow(0 0 6px rgba(0,242,255,0.6))" }}
+          />
+          <span
+            className="text-[11px] font-bold tracking-[0.2em] text-foreground uppercase"
+            style={{ letterSpacing: "0.25em" }}
+          >
+            PROTOCOL
+          </span>
         </div>
 
-        <nav className="hidden md:flex ml-10 space-x-1">
-          {TABS.map((tab) => (
-            <button
-              key={tab}
-              data-testid={`tab-desktop-${tab}`}
-              onClick={() => setActiveTab(tab)}
-              className={cn(
-                "px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 capitalize",
-                activeTab === tab
-                  ? "text-cyan glow-cyan bg-cyan/10"
-                  : "text-muted-foreground hover:text-foreground hover:bg-white/5"
-              )}
-            >
-              {tab}
-            </button>
-          ))}
+        {/* Desktop tabs */}
+        <nav className="hidden md:flex items-end h-full gap-0">
+          {TABS.map(({ key, label }) => {
+            const isActive = activeTab === key;
+            return (
+              <button
+                key={key}
+                data-testid={`tab-desktop-${key}`}
+                onClick={() => setActiveTab(key)}
+                className={cn(
+                  "relative px-4 h-full flex items-center text-xs font-medium tracking-wider uppercase transition-colors duration-150",
+                  isActive ? "text-cyan" : "text-muted-foreground/60 hover:text-muted-foreground"
+                )}
+                style={isActive ? { textShadow: "0 0 12px rgba(0,242,255,0.6)" } : undefined}
+              >
+                {label}
+                {/* Active underline bar */}
+                {isActive && (
+                  <span
+                    className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full bg-cyan"
+                    style={{ boxShadow: "0 0 8px rgba(0,242,255,0.8), 0 0 16px rgba(0,242,255,0.4)" }}
+                  />
+                )}
+              </button>
+            );
+          })}
         </nav>
       </header>
 
-      <main className="flex-1 w-full max-w-5xl mx-auto p-4 md:p-6 pb-24 md:pb-6 flex flex-col md:flex-row gap-6">
+      {/* ── Main content ── */}
+      <main className="flex-1 w-full max-w-5xl mx-auto p-4 md:p-5 pb-24 md:pb-5 flex flex-col md:flex-row gap-4">
         {activeTab !== "protocol" && (
           <>
-            <div className={cn(
-              "w-full space-y-6",
-              activeTab === "calculator" ? "block" : "hidden md:block md:w-1/2"
-            )}>
+            <div
+              className={cn(
+                "w-full space-y-4",
+                activeTab === "calculator" ? "block" : "hidden md:block md:w-1/2"
+              )}
+            >
               {childArray.slice(0, 2)}
             </div>
 
-            <div className={cn(
-              "w-full space-y-6",
-              activeTab === "log" ? "block" : "hidden md:block md:w-1/2"
-            )}>
+            <div
+              className={cn(
+                "w-full",
+                activeTab === "log" ? "block" : "hidden md:block md:w-1/2"
+              )}
+            >
               {childArray[2] ?? null}
             </div>
           </>
         )}
 
         {activeTab === "protocol" && (
-          <div className="w-full flex flex-col items-center justify-center h-48 gap-3 border border-dashed border-border rounded-lg text-muted-foreground">
-            <p className="font-mono text-xs uppercase tracking-widest">Coming in Stage 2</p>
-            <p className="text-xs text-muted-foreground/60 text-center max-w-xs">
-              Active protocol tracking, washout timers, and scheduling — available in the next release.
-            </p>
+          <div className="w-full">
+            {childArray[3] ?? (
+              <div className="flex flex-col items-center justify-center h-64 gap-3 border border-dashed border-[#1e1e1e] rounded-xl text-muted-foreground">
+                <Activity className="w-6 h-6 text-muted-foreground/20" />
+                <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/40">
+                  Coming in Stage 2
+                </p>
+                <p className="text-[10px] text-muted-foreground/25 text-center max-w-xs">
+                  Protocol scheduling, washout timers, and inventory tracking.
+                </p>
+              </div>
+            )}
           </div>
         )}
       </main>
 
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around h-16 border-t border-border/50 bg-background/90 backdrop-blur-md">
-        {TABS.map((tab) => (
-          <button
-            key={tab}
-            data-testid={`tab-mobile-${tab}`}
-            onClick={() => setActiveTab(tab)}
-            className={cn(
-              "flex-1 flex flex-col items-center justify-center h-full gap-1 transition-colors duration-200 capitalize",
-              activeTab === tab ? "text-cyan" : "text-muted-foreground"
-            )}
-          >
-            <span className={cn("text-xs font-medium tracking-wider", activeTab === tab && "glow-cyan")}>
-              {tab}
-            </span>
-            {activeTab === tab && (
-              <div className="w-1 h-1 rounded-full bg-cyan glow-cyan-strong" />
-            )}
-          </button>
-        ))}
+      {/* ── Mobile bottom nav ── */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-stretch h-14 border-t border-[#181818] bg-[#050505]/95 backdrop-blur-md">
+        {TABS.map(({ key, label }) => {
+          const isActive = activeTab === key;
+          return (
+            <button
+              key={key}
+              data-testid={`tab-mobile-${key}`}
+              onClick={() => setActiveTab(key)}
+              className={cn(
+                "flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors duration-150",
+                isActive ? "text-cyan" : "text-muted-foreground/40"
+              )}
+            >
+              <span
+                className="text-[10px] font-medium tracking-widest uppercase"
+                style={isActive ? { textShadow: "0 0 8px rgba(0,242,255,0.5)" } : undefined}
+              >
+                {label}
+              </span>
+              {isActive && (
+                <span
+                  className="w-4 h-0.5 rounded-full bg-cyan"
+                  style={{ boxShadow: "0 0 6px rgba(0,242,255,0.8)" }}
+                />
+              )}
+            </button>
+          );
+        })}
       </nav>
     </div>
   );

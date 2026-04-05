@@ -3,6 +3,16 @@ import { persist } from "zustand/middleware";
 import type { DoseUnit, FrequencyKey } from "@/data/compounds";
 import { getCompoundById } from "@/data/compounds";
 import { calculate, type ReconstitutionResult } from "@/lib/mathEngine";
+import {
+  deriveKey,
+  generateSalt,
+  saltToBase64,
+  base64ToSalt,
+  encryptPayload,
+  decryptPayload,
+} from "@/lib/crypto";
+
+// ─── Data types ───────────────────────────────────────────────────────────────
 
 export interface DoseLogEntry {
   id: string;
@@ -16,6 +26,42 @@ export interface DoseLogEntry {
   timestamp: string;
 }
 
+export interface ActiveProtocol {
+  id: string;
+  compoundId: string;
+  compound: string;
+  dose: number;
+  doseUnit: DoseUnit;
+  frequency: FrequencyKey;
+  customIntervalHours?: number;
+  startDate: string;
+  endDate?: string;
+  vialAmount: number;
+  waterAmount: number;
+  notes?: string;
+  active: boolean;
+}
+
+export interface SavedTemplate {
+  id: string;
+  name: string;
+  protocols: Omit<ActiveProtocol, "id" | "startDate" | "endDate" | "active">[];
+  createdAt: string;
+}
+
+// ─── Sensitive payload (encrypted or plain) ───────────────────────────────────
+
+interface SensitivePayload {
+  entries: DoseLogEntry[];
+  protocols: ActiveProtocol[];
+  templates: SavedTemplate[];
+}
+
+const PLAIN_STORAGE_KEY = "protocol-plain";
+const ENCRYPTED_STORAGE_KEY = "protocol-encrypted";
+
+// ─── Store slices ─────────────────────────────────────────────────────────────
+
 interface CalculatorState {
   selectedCompoundId: string;
   vialSizeMg: number;
@@ -25,9 +71,22 @@ interface CalculatorState {
   result: ReconstitutionResult | null;
 }
 
-interface LogsState {
-  entries: DoseLogEntry[];
+interface LockMeta {
+  hasPassphrase: boolean;
+  saltBase64: string | null;
+  autoLockMinutes: number;
 }
+
+interface RuntimeState {
+  isLocked: boolean;
+  sessionKey: CryptoKey | null;
+  lockError: string | null;
+  entries: DoseLogEntry[];
+  protocols: ActiveProtocol[];
+  templates: SavedTemplate[];
+}
+
+// ─── Actions ──────────────────────────────────────────────────────────────────
 
 interface CalculatorActions {
   setCompound: (id: string) => void;
@@ -38,13 +97,45 @@ interface CalculatorActions {
   recalculate: () => void;
 }
 
+interface LockActions {
+  unlock: (passphrase: string) => Promise<void>;
+  lock: () => void;
+  setPassphrase: (passphrase: string) => Promise<void>;
+  removePassphrase: (passphrase: string) => Promise<void>;
+  setAutoLockMinutes: (minutes: number) => void;
+  resetAutoLock: () => void;
+}
+
 interface LogsActions {
   logDose: (entry: Omit<DoseLogEntry, "id" | "timestamp">) => void;
   deleteEntry: (id: string) => void;
   clearAll: () => void;
 }
 
-type ProtocolStore = CalculatorState & LogsState & CalculatorActions & LogsActions;
+interface ProtocolActions {
+  addProtocol: (p: Omit<ActiveProtocol, "id">) => void;
+  updateProtocol: (id: string, updates: Partial<ActiveProtocol>) => void;
+  removeProtocol: (id: string) => void;
+  toggleProtocol: (id: string) => void;
+}
+
+interface TemplateActions {
+  saveTemplate: (name: string) => void;
+  loadTemplate: (id: string) => void;
+  deleteTemplate: (id: string) => void;
+  renameTemplate: (id: string, name: string) => void;
+}
+
+type ProtocolStore = CalculatorState &
+  LockMeta &
+  RuntimeState &
+  CalculatorActions &
+  LockActions &
+  LogsActions &
+  ProtocolActions &
+  TemplateActions;
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const DEFAULT_COMPOUND_ID = "bpc-157";
 
@@ -67,81 +158,313 @@ function computeResult(state: CalculatorState): ReconstitutionResult | null {
   });
 }
 
+function loadPlainPayload(): SensitivePayload | null {
+  try {
+    const raw = localStorage.getItem(PLAIN_STORAGE_KEY);
+    if (!raw) {
+      // Migrate from Stage 1 format (entries were in Zustand persist)
+      const old = localStorage.getItem("protocol-storage");
+      if (old) {
+        const parsed = JSON.parse(old);
+        if (parsed?.state?.entries) {
+          return { entries: parsed.state.entries, protocols: [], templates: [] };
+        }
+      }
+      return null;
+    }
+    return JSON.parse(raw) as SensitivePayload;
+  } catch {
+    return null;
+  }
+}
+
+function savePlainPayload(payload: SensitivePayload): void {
+  try {
+    localStorage.setItem(PLAIN_STORAGE_KEY, JSON.stringify(payload));
+  } catch {
+    // Storage full or unavailable
+  }
+}
+
+// Auto-lock timer
+let autoLockTimer: ReturnType<typeof setTimeout> | null = null;
+
+function clearAutoLockTimer() {
+  if (autoLockTimer) {
+    clearTimeout(autoLockTimer);
+    autoLockTimer = null;
+  }
+}
+
+// ─── Store ────────────────────────────────────────────────────────────────────
+
 export const useProtocolStore = create<ProtocolStore>()(
   persist(
-    (set, get) => ({
-      ...DEFAULT_CALC,
-      result: computeResult(DEFAULT_CALC),
-      entries: [],
-
-      setCompound: (id) => {
-        const compound = getCompoundById(id);
-        if (compound) {
-          set({
-            selectedCompoundId: id,
-            vialSizeMg: compound.defaultVialSizeMg,
-            waterVolumeMl: compound.defaultWaterVolumeMl,
-            targetDose: compound.defaultDose,
-            targetDoseUnit: compound.defaultDoseUnit,
-          });
+    (set, get) => {
+      // Helper: persist sensitive data after each mutation
+      const syncSensitive = (): void => {
+        const { entries, protocols, templates, hasPassphrase, sessionKey } = get();
+        const payload: SensitivePayload = { entries, protocols, templates };
+        if (hasPassphrase && sessionKey) {
+          encryptPayload(sessionKey, payload)
+            .then((encrypted) => {
+              try {
+                localStorage.setItem(ENCRYPTED_STORAGE_KEY, encrypted);
+              } catch {
+                // ignore
+              }
+            })
+            .catch(() => {
+              // encryption failure — fall back to plain
+              savePlainPayload(payload);
+            });
         } else {
-          set({ selectedCompoundId: id });
+          savePlainPayload(payload);
         }
-        get().recalculate();
-      },
+      };
 
-      setVialSize: (mg) => {
-        set({ vialSizeMg: mg });
-        get().recalculate();
-      },
+      // Helper: start auto-lock countdown
+      const startAutoLock = (): void => {
+        clearAutoLockTimer();
+        const minutes = get().autoLockMinutes;
+        if (!get().hasPassphrase || minutes <= 0) return;
+        autoLockTimer = setTimeout(() => {
+          get().lock();
+        }, minutes * 60 * 1000);
+      };
 
-      setWaterVolume: (ml) => {
-        set({ waterVolumeMl: ml });
-        get().recalculate();
-      },
+      return {
+        // ── Calculator state ──
+        ...DEFAULT_CALC,
+        result: computeResult(DEFAULT_CALC),
 
-      setTargetDose: (dose) => {
-        set({ targetDose: dose });
-        get().recalculate();
-      },
+        // ── Lock meta (persisted) ──
+        hasPassphrase: false,
+        saltBase64: null,
+        autoLockMinutes: 15,
 
-      setDoseUnit: (unit) => {
-        const { targetDose, targetDoseUnit } = get();
-        let convertedDose = targetDose;
-        if (unit !== targetDoseUnit) {
-          convertedDose = unit === "mg" ? targetDose / 1000 : targetDose * 1000;
-        }
-        set({ targetDoseUnit: unit, targetDose: convertedDose });
-        get().recalculate();
-      },
+        // ── Runtime state (NOT persisted) ──
+        isLocked: false,
+        sessionKey: null,
+        lockError: null,
+        entries: [],
+        protocols: [],
+        templates: [],
 
-      recalculate: () => {
-        const state = get();
-        const result = computeResult(state);
-        set({ result });
-      },
+        // ── Calculator actions ──
+        setCompound: (id) => {
+          const compound = getCompoundById(id);
+          if (compound) {
+            set({
+              selectedCompoundId: id,
+              vialSizeMg: compound.defaultVialSizeMg,
+              waterVolumeMl: compound.defaultWaterVolumeMl,
+              targetDose: compound.defaultDose,
+              targetDoseUnit: compound.defaultDoseUnit,
+            });
+          } else {
+            set({ selectedCompoundId: id });
+          }
+          get().recalculate();
+        },
 
-      logDose: (entry) => {
-        const newEntry: DoseLogEntry = {
-          ...entry,
-          id: crypto.randomUUID(),
-          timestamp: new Date().toISOString(),
-        };
-        set((state) => ({
-          entries: [newEntry, ...state.entries].slice(0, 100),
-        }));
-      },
+        setVialSize: (mg) => {
+          set({ vialSizeMg: mg });
+          get().recalculate();
+        },
 
-      deleteEntry: (id) => {
-        set((state) => ({
-          entries: state.entries.filter((e) => e.id !== id),
-        }));
-      },
+        setWaterVolume: (ml) => {
+          set({ waterVolumeMl: ml });
+          get().recalculate();
+        },
 
-      clearAll: () => {
-        set({ entries: [] });
-      },
-    }),
+        setTargetDose: (dose) => {
+          set({ targetDose: dose });
+          get().recalculate();
+        },
+
+        setDoseUnit: (unit) => {
+          const { targetDose, targetDoseUnit } = get();
+          let converted = targetDose;
+          if (unit !== targetDoseUnit) {
+            converted = unit === "mg" ? targetDose / 1000 : targetDose * 1000;
+          }
+          set({ targetDoseUnit: unit, targetDose: converted });
+          get().recalculate();
+        },
+
+        recalculate: () => {
+          set({ result: computeResult(get()) });
+        },
+
+        // ── Lock actions ──
+        unlock: async (passphrase) => {
+          const { saltBase64, hasPassphrase } = get();
+          if (!hasPassphrase || !saltBase64) {
+            set({ isLocked: false, lockError: null });
+            return;
+          }
+          try {
+            const salt = base64ToSalt(saltBase64);
+            const key = await deriveKey(passphrase, salt);
+            const encryptedRaw = localStorage.getItem(ENCRYPTED_STORAGE_KEY);
+            let payload: SensitivePayload = { entries: [], protocols: [], templates: [] };
+            if (encryptedRaw) {
+              payload = (await decryptPayload(key, encryptedRaw)) as SensitivePayload;
+            }
+            set({
+              sessionKey: key,
+              isLocked: false,
+              lockError: null,
+              entries: payload.entries ?? [],
+              protocols: payload.protocols ?? [],
+              templates: payload.templates ?? [],
+            });
+            startAutoLock();
+          } catch {
+            set({ lockError: "Incorrect passphrase. Try again." });
+          }
+        },
+
+        lock: () => {
+          clearAutoLockTimer();
+          set({
+            isLocked: true,
+            sessionKey: null,
+            lockError: null,
+            entries: [],
+            protocols: [],
+            templates: [],
+          });
+        },
+
+        setPassphrase: async (passphrase) => {
+          const { entries, protocols, templates } = get();
+          const salt = await generateSalt();
+          const saltB64 = saltToBase64(salt);
+          const key = await deriveKey(passphrase, salt);
+          const payload: SensitivePayload = { entries, protocols, templates };
+          const encrypted = await encryptPayload(key, payload);
+          localStorage.setItem(ENCRYPTED_STORAGE_KEY, encrypted);
+          localStorage.removeItem(PLAIN_STORAGE_KEY);
+          set({ hasPassphrase: true, saltBase64: saltB64, sessionKey: key, isLocked: false });
+          startAutoLock();
+        },
+
+        removePassphrase: async (passphrase) => {
+          const { saltBase64, sessionKey } = get();
+          if (!saltBase64 || !sessionKey) throw new Error("No passphrase set");
+          // Verify passphrase first by deriving key and decrypting
+          const salt = base64ToSalt(saltBase64);
+          await deriveKey(passphrase, salt); // throws if wrong passphrase
+          // Decrypt and save as plain
+          const { entries, protocols, templates } = get();
+          savePlainPayload({ entries, protocols, templates });
+          localStorage.removeItem(ENCRYPTED_STORAGE_KEY);
+          set({ hasPassphrase: false, saltBase64: null, sessionKey: null });
+        },
+
+        setAutoLockMinutes: (minutes) => {
+          set({ autoLockMinutes: minutes });
+          if (get().sessionKey) startAutoLock();
+        },
+
+        resetAutoLock: () => {
+          if (get().sessionKey) startAutoLock();
+        },
+
+        // ── Log actions ──
+        logDose: (entry) => {
+          const newEntry: DoseLogEntry = {
+            ...entry,
+            id: crypto.randomUUID(),
+            timestamp: new Date().toISOString(),
+          };
+          set((state) => ({
+            entries: [newEntry, ...state.entries].slice(0, 200),
+          }));
+          syncSensitive();
+        },
+
+        deleteEntry: (id) => {
+          set((state) => ({ entries: state.entries.filter((e) => e.id !== id) }));
+          syncSensitive();
+        },
+
+        clearAll: () => {
+          set({ entries: [] });
+          syncSensitive();
+        },
+
+        // ── Protocol actions ──
+        addProtocol: (p) => {
+          const newProto: ActiveProtocol = { ...p, id: crypto.randomUUID() };
+          set((state) => ({ protocols: [...state.protocols, newProto] }));
+          syncSensitive();
+        },
+
+        updateProtocol: (id, updates) => {
+          set((state) => ({
+            protocols: state.protocols.map((p) =>
+              p.id === id ? { ...p, ...updates } : p
+            ),
+          }));
+          syncSensitive();
+        },
+
+        removeProtocol: (id) => {
+          set((state) => ({ protocols: state.protocols.filter((p) => p.id !== id) }));
+          syncSensitive();
+        },
+
+        toggleProtocol: (id) => {
+          set((state) => ({
+            protocols: state.protocols.map((p) =>
+              p.id === id ? { ...p, active: !p.active } : p
+            ),
+          }));
+          syncSensitive();
+        },
+
+        // ── Template actions ──
+        saveTemplate: (name) => {
+          const { protocols } = get();
+          const template: SavedTemplate = {
+            id: crypto.randomUUID(),
+            name,
+            protocols: protocols.map(({ id: _id, startDate: _sd, endDate: _ed, active: _a, ...rest }) => rest),
+            createdAt: new Date().toISOString(),
+          };
+          set((state) => ({ templates: [...state.templates, template] }));
+          syncSensitive();
+        },
+
+        loadTemplate: (templateId) => {
+          const template = get().templates.find((t) => t.id === templateId);
+          if (!template) return;
+          const newProtocols: ActiveProtocol[] = template.protocols.map((p) => ({
+            ...p,
+            id: crypto.randomUUID(),
+            startDate: new Date().toISOString(),
+            active: true,
+          }));
+          set({ protocols: newProtocols });
+          syncSensitive();
+        },
+
+        deleteTemplate: (id) => {
+          set((state) => ({ templates: state.templates.filter((t) => t.id !== id) }));
+          syncSensitive();
+        },
+
+        renameTemplate: (id, name) => {
+          set((state) => ({
+            templates: state.templates.map((t) => (t.id === id ? { ...t, name } : t)),
+          }));
+          syncSensitive();
+        },
+      };
+    },
     {
       name: "protocol-storage",
       partialize: (state) => ({
@@ -150,17 +473,38 @@ export const useProtocolStore = create<ProtocolStore>()(
         waterVolumeMl: state.waterVolumeMl,
         targetDose: state.targetDose,
         targetDoseUnit: state.targetDoseUnit,
-        entries: state.entries,
+        hasPassphrase: state.hasPassphrase,
+        saltBase64: state.saltBase64,
+        autoLockMinutes: state.autoLockMinutes,
       }),
     }
   )
 );
 
-// Recompute derived `result` immediately after store creation.
-// localStorage hydration (Zustand persist) is synchronous, so by the time
-// this line runs the persisted inputs are already in the store.
-// This ensures the UI shows the correct syringe units on first render
-// after a reload — without waiting for user interaction.
-useProtocolStore.setState({
-  result: computeResult(useProtocolStore.getState()),
-});
+// ── Bootstrap: load data and compute result after store creation ──────────────
+const bootstrapStore = () => {
+  const { hasPassphrase } = useProtocolStore.getState();
+
+  if (!hasPassphrase) {
+    // No passphrase — load plain payload immediately
+    const payload = loadPlainPayload();
+    if (payload) {
+      useProtocolStore.setState({
+        entries: payload.entries ?? [],
+        protocols: payload.protocols ?? [],
+        templates: payload.templates ?? [],
+        isLocked: false,
+      });
+    }
+  } else {
+    // Has passphrase — start locked
+    useProtocolStore.setState({ isLocked: true });
+  }
+
+  // Always recompute result from hydrated inputs
+  useProtocolStore.setState({
+    result: computeResult(useProtocolStore.getState()),
+  });
+};
+
+bootstrapStore();
