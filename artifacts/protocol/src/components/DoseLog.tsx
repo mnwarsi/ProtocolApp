@@ -14,6 +14,7 @@ export default function DoseLog() {
         </h2>
         {entries.length > 0 && (
           <button
+            data-testid="btn-clear-all"
             onClick={() => {
               if (window.confirm("Clear all log entries?")) {
                 clearAll();
@@ -38,40 +39,42 @@ export default function DoseLog() {
       ) : (
         <div className="space-y-3">
           {entries.map((entry, index) => {
-            const date = new Date(entry.timestamp);
-            const showDateHeader = index === 0 || new Date(entries[index - 1].timestamp).toLocaleDateString() !== date.toLocaleDateString();
-            
+            const prevEntry = entries[index - 1];
+            const showCompoundHeader = index === 0 || prevEntry?.compoundId !== entry.compoundId;
+
             return (
               <div key={entry.id} className="animate-in slide-in-from-left-2 duration-300">
-                {showDateHeader && (
-                  <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest mb-2 mt-4 px-1">
-                    {date.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}
+                {showCompoundHeader && (
+                  <div className="flex items-center gap-2 mt-4 mb-2 px-1 first:mt-0">
+                    <span className="text-[10px] font-semibold text-cyan uppercase tracking-widest">
+                      {entry.compound}
+                    </span>
+                    <div className="flex-1 h-px bg-cyan/15" />
                   </div>
                 )}
-                
+
                 <div className="bg-card border border-card-border rounded-lg p-4 shadow-sm group hover:border-cyan/30 transition-colors flex items-center justify-between">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold text-foreground">{entry.compound}</span>
+                      <span className="text-cyan font-mono font-semibold">
+                        {formatUnits(entry.units)}u
+                      </span>
                       <span className="text-xs text-muted-foreground font-mono">
                         {entry.dose}{entry.doseUnit}
                       </span>
                     </div>
-                    <div className="flex items-center gap-3 text-xs">
-                      <span className="text-cyan font-mono font-medium">
-                        {formatUnits(entry.units)}u
-                      </span>
-                      <span className="text-muted-foreground font-mono">
-                        ({formatConcentration(entry.concentrationMcgPerUnit)} mcg/u)
-                      </span>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground font-mono">
+                      <span>{formatConcentration(entry.concentrationMcgPerUnit)} mcg/u</span>
+                      <span>{formatConcentration(entry.concentrationMgPerMl)} mg/mL</span>
                     </div>
                   </div>
-                  
+
                   <div className="flex flex-col items-end gap-2">
                     <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                      {formatRelativeTime(date)}
+                      {formatRelativeTime(new Date(entry.timestamp))}
                     </span>
                     <button
+                      data-testid={`btn-delete-entry-${entry.id}`}
                       onClick={() => deleteEntry(entry.id)}
                       className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-all p-1"
                       title="Delete entry"
