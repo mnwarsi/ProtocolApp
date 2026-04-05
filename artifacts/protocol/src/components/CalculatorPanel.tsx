@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useProtocolStore } from "@/store/protocolStore";
 import { COMPOUNDS, getCompoundById } from "@/data/compounds";
-import { formatUnits, formatConcentration } from "@/lib/mathEngine";
+import { formatUnits, formatConcentration, formatFormula } from "@/lib/mathEngine";
 import { AlertCircle, Calculator, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -194,7 +194,9 @@ export default function CalculatorPanel() {
 
             {showFormula && (
               <div className="text-xs font-mono text-center text-muted-foreground/70 bg-black/20 p-2 rounded">
-                ({targetDose}{targetDoseUnit} / {vialSizeMg}mg) × {waterVolumeMl}mL = {result?.valid ? formatUnits(result.syringeUnits) : "0"} units
+                {result?.valid
+                  ? formatFormula(result.targetDoseMcg, vialSizeMg, waterVolumeMl, result.syringeUnits)
+                  : `(? mcg / ? mcg) × ? mL × 100 = 0 units`}
               </div>
             )}
           </div>

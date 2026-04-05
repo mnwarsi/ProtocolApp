@@ -1,4 +1,5 @@
-import type { DoseUnit } from "@/data/compounds";
+import type { DoseUnit, FrequencyKey, FrequencyOption } from "@/data/compounds";
+import { FREQUENCY_OPTIONS } from "@/data/compounds";
 
 export interface ReconstitutionInputs {
   vialSizeMg: number;
@@ -96,7 +97,7 @@ export function calculate(inputs: ReconstitutionInputs): ReconstitutionResult {
 
   return {
     valid: true,
-    syringeUnits: Math.min(syringeUnits, MAX_SYRINGE_UNITS),
+    syringeUnits,
     concentrationMcgPerUnit,
     concentrationMgPerMl,
     targetDoseMcg,
@@ -151,4 +152,36 @@ export function formatRelativeTime(date: Date): string {
 
   if (minutes < 1) return label;
   return isPast ? `${label} ago` : `in ${label}`;
+}
+
+export function getFrequencyOption(key: FrequencyKey): FrequencyOption | undefined {
+  return FREQUENCY_OPTIONS.find((f) => f.key === key);
+}
+
+export function getFrequencyIntervalHours(key: FrequencyKey): number {
+  return getFrequencyOption(key)?.intervalHours ?? 24;
+}
+
+export function getNextDoseTime(lastDose: Date, key: FrequencyKey): Date {
+  const intervalMs = getFrequencyIntervalHours(key) * 3600 * 1000;
+  return new Date(lastDose.getTime() + intervalMs);
+}
+
+export function isDoseDue(lastDose: Date, key: FrequencyKey): boolean {
+  return getNextDoseTime(lastDose, key) <= new Date();
+}
+
+export function timeUntilNextDose(lastDose: Date, key: FrequencyKey): number {
+  const next = getNextDoseTime(lastDose, key);
+  return Math.max(0, next.getTime() - Date.now());
+}
+
+export function formatFormula(
+  targetDoseMcg: number,
+  vialSizeMg: number,
+  waterVolumeMl: number,
+  syringeUnits: number
+): string {
+  const vialSizeMcg = vialSizeMg * 1000;
+  return `(${targetDoseMcg}mcg / ${vialSizeMcg}mcg) × ${waterVolumeMl}mL × 100 = ${formatUnits(syringeUnits)} units`;
 }

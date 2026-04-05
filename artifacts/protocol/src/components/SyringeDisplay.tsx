@@ -6,7 +6,7 @@ export default function SyringeDisplay() {
   const { result } = useProtocolStore();
   
   const units = result?.valid ? result.syringeUnits : 0;
-  const fillPercentage = Math.min(Math.max(units / 100, 0), 1);
+  const fillPercentage = Math.min(Math.max(units / 100, 0), 1); // visual clamp only; units may exceed 100
   
   // Dimensions
   const width = 300;
