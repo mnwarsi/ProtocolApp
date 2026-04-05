@@ -1,5 +1,7 @@
 import { randomBytes } from "crypto";
 import { Router, type IRouter } from "express";
+import { getAuth } from "@clerk/express";
+import { storage } from "../storage";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -158,10 +160,30 @@ function generateDemoData(metric: string, days: number): Array<{ date: string; v
   return results;
 }
 
+// ── Pro tier guard ──────────────────────────────────────────────────────────────
+
+async function requireProTier(req: Parameters<typeof getAuth>[0]): Promise<boolean> {
+  const auth = getAuth(req);
+  if (!auth?.userId) return false;
+  try {
+    await storage.upsertUser({ id: auth.userId });
+    const tier = await storage.getUserTier(auth.userId);
+    return tier === "pro";
+  } catch {
+    return false;
+  }
+}
+
 // ── Routes ─────────────────────────────────────────────────────────────────────
 
-// GET /api/wearable/connect — Start OAuth flow
-router.get("/wearable/connect", (_req, res) => {
+// GET /api/wearable/connect — Start OAuth flow (Pro only)
+router.get("/wearable/connect", async (req, res) => {
+  const isPro = await requireProTier(req);
+  if (!isPro) {
+    res.redirect(`${APP_BASE_URL}/?wearable_error=pro_required#settings`);
+    return;
+  }
+
   if (!WHOOP_CLIENT_ID) {
     logger.warn("WHOOP_CLIENT_ID not configured");
     res.redirect(
@@ -256,19 +278,25 @@ router.get("/wearable/status", (_req, res) => {
   });
 });
 
-// POST /api/wearable/disconnect — Clear tokens
-router.post("/wearable/disconnect", (_req, res) => {
+// POST /api/wearable/disconnect — Clear tokens (Pro only)
+router.post("/wearable/disconnect", async (req, res) => {
+  const isPro = await requireProTier(req);
+  if (!isPro) {
+    res.status(403).json({ error: "Pro subscription required" });
+    return;
+  }
   tokenStore = null;
   logger.info("Wearable disconnected");
   res.json({ connected: false, provider: null, connectedAt: null });
 });
 
-// GET /api/wearable/data — Fetch biometric data
+// GET /api/wearable/data — Fetch biometric data (Pro only; free tier returns demo data)
 router.get("/wearable/data", async (req, res) => {
   const metric = (req.query.metric as string) ?? "hrv";
   const days = Math.min(90, Math.max(7, parseInt((req.query.days as string) ?? "30", 10)));
 
-  const token = await getValidToken();
+  const isPro = await requireProTier(req);
+  const token = isPro ? await getValidToken() : null;
 
   if (!token) {
     const demoData = generateDemoData(metric, days);

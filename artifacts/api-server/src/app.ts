@@ -59,18 +59,17 @@ if (isStripeConfigured()) {
   );
 }
 
-const allowedOrigins = process.env.REPLIT_DOMAINS
-  ? process.env.REPLIT_DOMAINS.split(",").flatMap((d) => [
-      `https://${d.trim()}`,
-      `https://${d.trim().replace(/^[^.]+\./, "")}`,
-    ])
-  : [];
+const allowedOrigins = new Set(
+  process.env.REPLIT_DOMAINS
+    ? process.env.REPLIT_DOMAINS.split(",").map((d) => `https://${d.trim()}`)
+    : [],
+);
 
 app.use(
   cors({
     credentials: true,
     origin: (origin, cb) => {
-      if (!origin || allowedOrigins.some((o) => origin.startsWith(o))) {
+      if (!origin || allowedOrigins.has(origin)) {
         cb(null, true);
       } else {
         cb(new Error("Not allowed by CORS"));

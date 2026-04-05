@@ -244,6 +244,7 @@ function UpgradeCard() {
 // ── Wearable section ───────────────────────────────────────────────────────────
 
 function WearableCard() {
+  const { tier } = useProtocolStore();
   const [status, setStatus] = useState<WearableStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [disconnecting, setDisconnecting] = useState(false);
@@ -294,6 +295,23 @@ function WearableCard() {
       setDisconnecting(false);
     }
   };
+
+  if (tier !== "pro") {
+    return (
+      <div className="border border-[#1e1e1e] rounded-xl p-4 bg-[#0c0c0c] space-y-3">
+        <div className="flex items-center gap-2">
+          <WifiOff className="w-3.5 h-3.5 text-muted-foreground/40" />
+          <span className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-widest">
+            Wearable Device
+          </span>
+          <span className="ml-auto text-[9px] font-mono px-1.5 py-0.5 rounded bg-cyan/5 border border-cyan/15 text-cyan/50 uppercase tracking-wider">Pro</span>
+        </div>
+        <p className="text-[9px] text-muted-foreground/30 font-mono">
+          Upgrade to Protocol Pro to connect a wearable device and unlock live biofeedback metrics.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="border border-[#1e1e1e] rounded-xl p-4 bg-[#0c0c0c] space-y-4">
