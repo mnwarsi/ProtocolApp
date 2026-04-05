@@ -152,11 +152,15 @@ export const useProtocolStore = create<ProtocolStore>()(
         targetDoseUnit: state.targetDoseUnit,
         entries: state.entries,
       }),
-      onRehydrateStorage: () => (state) => {
-        if (state) {
-          state.result = computeResult(state);
-        }
-      },
     }
   )
 );
+
+// Recompute derived `result` immediately after store creation.
+// localStorage hydration (Zustand persist) is synchronous, so by the time
+// this line runs the persisted inputs are already in the store.
+// This ensures the UI shows the correct syringe units on first render
+// after a reload — without waiting for user interaction.
+useProtocolStore.setState({
+  result: computeResult(useProtocolStore.getState()),
+});

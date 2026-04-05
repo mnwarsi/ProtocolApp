@@ -1,0 +1,261 @@
+Promising. The aesthetic direction is **strong**.
+
+## What is already working
+
+### 1. The vibe is right
+
+It already feels:
+
+* premium
+* dark
+* technical
+* more “operator tool” than “fitness app”
+
+The cyan on charcoal is effective. The overall mood is much closer to what you want than most first passes.
+
+### 2. The hierarchy is mostly good
+
+The eye goes:
+
+* calculator inputs
+* draw amount
+* CTA
+* syringe
+
+That is correct.
+
+### 3. The main value proposition is legible
+
+A user can immediately understand:
+
+* input variables
+* computed draw amount
+* log dose
+
+That matters. It does not feel confusing.
+
+---
+
+## Main critique
+
+Right now it looks **good**, but not yet **inevitable**.
+
+It still feels a bit like:
+**nice dashboard mockup**
+rather than
+**obsessively refined instrument panel**
+
+The main issues are:
+
+## 1. The layout is too empty
+
+There is too much dead space, especially:
+
+* top right around Recent Log
+* beneath the syringe
+* between cards
+
+The screen feels slightly under-packed for a precision tool.
+
+You want it to feel **dense, calm, and exact**.
+Not sparse.
+
+### Fix
+
+Tighten vertical spacing by about 10–15%.
+Bring the right column into greater use, or reduce its width.
+
+---
+
+## 2. The Recent Log card is weak
+
+This is currently the weakest part of the UI.
+
+Why:
+
+* too empty
+* too visually passive
+* placeholder text is bland
+* the card looks detached from the main action
+
+It currently feels like filler.
+
+### Fix
+
+Make it more useful even in empty state:
+
+* “No doses yet”
+* show what happens after logging
+* perhaps preview the expected first entry structure
+
+Better:
+
+* after first log, show timestamp + compound + units immediately
+* make this area feel alive
+
+---
+
+## 3. The syringe is too small and visually underpowered
+
+This is supposed to be one of the signature features, but right now it feels secondary.
+
+The calculator card is dominating. The syringe should feel more tactile and iconic.
+
+### Fix
+
+* enlarge syringe area
+* increase contrast on ticks and fill
+* make the fill more physically satisfying
+* possibly show a clearer plunger/body distinction
+
+At present it reads more like a miniature diagram than a hero interaction.
+
+---
+
+## 4. The “Draw Amount” card is good, but could be sharper
+
+The big number works. Good.
+But the supporting stats are slightly weak in wording and rhythm.
+
+“Concentration” and “Strength” are a bit semantically muddy together.
+
+### Fix
+
+Consider clearer labels:
+
+* **Units to Draw**
+* **mcg per Unit**
+* **mg per mL**
+
+That is more explicit and less ambiguous.
+
+Also, the formula area is nice in principle, but it currently feels visually dead.
+
+You either:
+
+* make it feel crisp and expandable,
+  or
+* hide it by default behind a real interaction.
+
+---
+
+## 5. Inputs need slightly more refinement
+
+The inputs are solid, but still a touch generic.
+
+### Issues
+
+* borders / surfaces are a bit flat
+* dropdown feels plain
+* the “mcg” suffix block is fine, but slightly clunky
+
+### Fix
+
+* make input states more intentional
+* sharpen selected/focused state
+* slightly improve label contrast
+* make unit toggles feel like part of a system, not appended boxes
+
+---
+
+## 6. Navigation is decent but not special yet
+
+The top nav is clean, but the active tab glow is a bit soft / ordinary.
+
+### Fix
+
+Either:
+
+* make it more minimal and precise,
+  or
+* make the active state feel more instrument-like
+
+Right now it is neither fully luxurious nor fully utilitarian.
+
+---
+
+## 7. The card shadows/glows are close to overuse
+
+The glow on the main card is nice, but be careful. This style can become cheap fast.
+
+### Fix
+
+Use glow only where it indicates:
+
+* active computation
+* selected state
+* primary CTA
+
+Everything else should rely more on:
+
+* depth
+* contrast
+* spacing
+* subtle borders
+
+Not neon bloom everywhere.
+
+---
+
+## Best immediate improvements
+
+If I were tightening this today, I would do these first:
+
+### Priority 1
+
+Make the syringe card bigger and more important.
+
+### Priority 2
+
+Improve the Recent Log panel so it feels functional, not placeholder.
+
+### Priority 3
+
+Tighten spacing and reduce dead air across the whole page.
+
+### Priority 4
+
+Refine labels:
+
+* replace vague terms with pharmacology-specific clarity
+
+### Priority 5
+
+Make the calculator inputs feel more custom and less default-form.
+
+---
+
+## Product/UX note
+
+The strongest thing on screen right now is actually the **5.0 units** display and CTA block.
+
+That means your product truth is emerging:
+this app wins when it makes the scary math feel
+
+* immediate
+* calm
+* precise
+
+So lean into that more.
+
+The screen should increasingly feel like:
+**“set parameters → get exact draw instantly → log with confidence”**
+
+Everything that does not strengthen that loop should be subordinate.
+
+---
+
+## Verdict
+
+**Overall:** **8/10** for this stage
+Very good direction. Clearly above average. Not yet elite.
+
+**Design direction:** correct
+**Usability:** already decent
+**Main weakness:** too much emptiness, syringe not yet heroic enough, right rail underpowered
+
+The good news is that this is not a conceptual problem. It is now a **refinement problem**.
+
+The foundation is solid.
+
+I can give you a very concrete **UI redline pass** next — section by section, telling you exactly what to resize, rename, move, and compress.
