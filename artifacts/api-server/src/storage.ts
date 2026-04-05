@@ -74,12 +74,13 @@ export class Storage {
     return updated?.encryptionSalt ?? salt;
   }
 
-  async getCloudBlob(userId: string): Promise<string | null> {
+  async getCloudBlob(userId: string): Promise<{ blob: string; updatedAt: Date } | null> {
     const [row] = await db
       .select()
       .from(cloudBlobs)
       .where(eq(cloudBlobs.userId, userId));
-    return row?.blob ?? null;
+    if (!row?.blob) return null;
+    return { blob: row.blob, updatedAt: row.updatedAt ?? new Date(0) };
   }
 
   async putCloudBlob(userId: string, blob: string): Promise<void> {

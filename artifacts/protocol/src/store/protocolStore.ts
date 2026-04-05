@@ -79,6 +79,7 @@ interface SensitivePayload {
   protocols: ActiveProtocol[];
   templates: SavedTemplate[];
   injectionSites?: InjectionSiteEntry[];
+  syncedAt?: string;
 }
 
 const PLAIN_STORAGE_KEY = "protocol-plain";
@@ -161,6 +162,7 @@ interface TierState {
   tier: "free" | "pro";
   cloudSyncing: boolean;
   signedInUserId: string | null;
+  lastCloudSyncAt: string | null;
 }
 
 interface TierActions {
@@ -304,6 +306,7 @@ export const useProtocolStore = create<ProtocolStore>()(
         tier: "free",
         cloudSyncing: false,
         signedInUserId: null,
+        lastCloudSyncAt: null,
 
         // ── Calculator actions ──
         setCompound: (id) => {
@@ -574,14 +577,19 @@ export const useProtocolStore = create<ProtocolStore>()(
           const state = get();
           set({ cloudSyncing: true });
           try {
+            const syncedAt = new Date().toISOString();
             const payload: SensitivePayload = {
               entries: state.entries,
               protocols: state.protocols,
               templates: state.templates,
               injectionSites: state.injectionSites,
+              syncedAt,
             };
             const blob = await encryptForCloud(userId, payload);
-            await uploadBlob(blob);
+            const result = await uploadBlob(blob);
+            if (result.ok) {
+              set({ lastCloudSyncAt: result.updatedAt ?? syncedAt });
+            }
           } catch {
             // Sync failure is non-fatal
           } finally {
@@ -593,17 +601,26 @@ export const useProtocolStore = create<ProtocolStore>()(
           if (get().tier !== "pro") return false;
           set({ cloudSyncing: true });
           try {
-            const blob = await downloadBlob();
-            if (!blob) return false;
+            const remote = await downloadBlob();
+            if (!remote) return false;
 
-            const payload = await decryptFromCloud<SensitivePayload>(userId, blob);
+            const payload = await decryptFromCloud<SensitivePayload>(userId, remote.blob);
             if (!payload?.entries) return false;
+
+            // Last-write-wins: compare cloud syncedAt vs local lastCloudSyncAt.
+            // If cloud is newer (or we have no local sync record), apply cloud data.
+            const localSyncedAt = get().lastCloudSyncAt;
+            const cloudSyncedAt = payload.syncedAt ?? remote.updatedAt;
+            const cloudIsNewer = !localSyncedAt || new Date(cloudSyncedAt) > new Date(localSyncedAt);
+
+            if (!cloudIsNewer) return false;
 
             set({
               entries: payload.entries ?? [],
               protocols: payload.protocols ?? [],
               templates: payload.templates ?? [],
               injectionSites: payload.injectionSites ?? [],
+              lastCloudSyncAt: cloudSyncedAt,
             });
             return true;
           } catch {

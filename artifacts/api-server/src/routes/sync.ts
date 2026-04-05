@@ -33,12 +33,12 @@ router.get("/sync/blob", requireAuth, async (req, res) => {
       return;
     }
 
-    const blob = await storage.getCloudBlob(userId);
-    if (!blob) {
+    const blobRecord = await storage.getCloudBlob(userId);
+    if (!blobRecord) {
       res.status(404).json({ blob: null });
       return;
     }
-    res.json({ blob });
+    res.json({ blob: blobRecord.blob, updatedAt: blobRecord.updatedAt.toISOString() });
   } catch (err) {
     logger.error({ err }, "Failed to get cloud blob");
     res.status(500).json({ error: "Failed to get sync data" });

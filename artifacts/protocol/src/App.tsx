@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import ProtocolApp from "@/pages/ProtocolApp";
 import NotFound from "@/pages/not-found";
 import { useProtocolStore } from "@/store/protocolStore";
+import { setClerkTokenProvider, clearClerkTokenProvider } from "@/lib/clerkTokenProvider";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string | undefined;
 
@@ -37,8 +38,18 @@ const clerkAppearance = {
 };
 
 function AuthSync() {
-  const { userId, isSignedIn, isLoaded } = useAuth();
+  const { userId, isSignedIn, isLoaded, getToken } = useAuth();
   const { syncFromCloud, syncToCloud, refreshTier, setTier, setSignedInUserId } = useProtocolStore();
+
+  // Register the Clerk token provider so API calls can forward auth tokens.
+  useEffect(() => {
+    if (!isLoaded) return;
+    if (isSignedIn) {
+      setClerkTokenProvider(() => getToken());
+    } else {
+      clearClerkTokenProvider();
+    }
+  }, [isLoaded, isSignedIn, getToken]);
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -110,9 +121,16 @@ function Router() {
 function ClerkProviderWithRouter() {
   const [, setLocation] = useLocation();
 
+  // In production, route Clerk API calls through our own proxy to avoid
+  // exposing the Clerk frontend API key and enable custom domain support.
+  const proxyUrl = import.meta.env.PROD
+    ? `${window.location.origin}${basePath}/api/__clerk`
+    : undefined;
+
   return (
     <ClerkProvider
       publishableKey={clerkPubKey!}
+      proxyUrl={proxyUrl}
       routerPush={(to) => setLocation(stripBase(to))}
       routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
     >

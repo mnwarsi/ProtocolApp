@@ -3,6 +3,14 @@
 // The server-side salt is random and stored in the DB — this prevents a DB operator
 // from deriving the encryption key from the userId alone.
 
+import { getClerkBearerToken } from "./clerkTokenProvider";
+
+async function authHeaders(): Promise<HeadersInit> {
+  const token = await getClerkBearerToken();
+  if (token) return { Authorization: `Bearer ${token}` };
+  return {};
+}
+
 const CLOUD_SYNC_FIXED_SALT = "protocol-cloud-v1";
 const ITERATIONS = 100_000;
 
@@ -51,7 +59,8 @@ async function fetchServerSalt(userId: string): Promise<string> {
   const cached = saltCache.get(userId);
   if (cached) return cached;
 
-  const res = await fetch(apiUrl("/sync/salt"), { credentials: "include" });
+  const headers = await authHeaders();
+  const res = await fetch(apiUrl("/sync/salt"), { credentials: "include", headers });
   if (!res.ok) throw new Error("Failed to fetch encryption salt");
   const data = await res.json() as { salt?: string };
   if (!data.salt) throw new Error("No salt returned");
@@ -97,8 +106,10 @@ export async function decryptFromCloud<T>(userId: string, blob: string): Promise
 
 export async function fetchTier(signal?: AbortSignal): Promise<"free" | "pro"> {
   try {
+    const headers = await authHeaders();
     const res = await fetch(apiUrl("/subscription/status"), {
       credentials: "include",
+      headers,
       signal,
     });
     if (!res.ok) return "free";
@@ -109,28 +120,34 @@ export async function fetchTier(signal?: AbortSignal): Promise<"free" | "pro"> {
   }
 }
 
-export async function uploadBlob(blob: string): Promise<boolean> {
+export async function uploadBlob(blob: string): Promise<{ ok: boolean; updatedAt: string | null }> {
   try {
+    const headers = await authHeaders();
     const res = await fetch(apiUrl("/sync/blob"), {
       method: "PUT",
       credentials: "include",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...headers },
       body: JSON.stringify({ blob }),
     });
-    return res.ok;
+    if (!res.ok) return { ok: false, updatedAt: null };
+    const data = await res.json() as { ok?: boolean; updatedAt?: string };
+    return { ok: true, updatedAt: data.updatedAt ?? null };
   } catch {
-    return false;
+    return { ok: false, updatedAt: null };
   }
 }
 
-export async function downloadBlob(): Promise<string | null> {
+export async function downloadBlob(): Promise<{ blob: string; updatedAt: string } | null> {
   try {
+    const headers = await authHeaders();
     const res = await fetch(apiUrl("/sync/blob"), {
       credentials: "include",
+      headers,
     });
     if (!res.ok) return null;
-    const data = await res.json() as { blob?: string };
-    return data.blob ?? null;
+    const data = await res.json() as { blob?: string; updatedAt?: string };
+    if (!data.blob) return null;
+    return { blob: data.blob, updatedAt: data.updatedAt ?? new Date(0).toISOString() };
   } catch {
     return null;
   }
