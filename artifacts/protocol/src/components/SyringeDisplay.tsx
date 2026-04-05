@@ -1,5 +1,6 @@
+import { useEffect } from "react";
 import { useProtocolStore } from "@/store/protocolStore";
-import { motion } from "framer-motion";
+import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 
 export default function SyringeDisplay() {
   const { result } = useProtocolStore();
@@ -12,14 +13,26 @@ export default function SyringeDisplay() {
   const barrelY = 18;
   const barrelH = 44;
   const barrelMidY = barrelY + barrelH / 2;
-  const gasketW = 10;
 
   const fillW = barrelW * fillPercentage;
-  const liquidX = barrelX + barrelW - fillW;
-  const gasketX = liquidX - gasketW;
 
-  const rodY = barrelMidY - 4;
-  const rodH = 8;
+  // Single shared motion value — the position of the fill boundary (left edge of liquid).
+  // Both the liquid rect and the gasket line derive from this so they can never desync.
+  const boundaryBase = useMotionValue(barrelX + barrelW - fillW);
+  const boundary = useSpring(boundaryBase, { stiffness: 55, damping: 14 });
+
+  useEffect(() => {
+    boundaryBase.set(barrelX + barrelW - fillW);
+  }, [fillW, boundaryBase]);
+
+  // Derived motion values — all from the same spring
+  const liquidX  = useTransform(boundary, (v) => v);
+  const liquidW  = useTransform(boundary, (v) => Math.max(0, barrelX + barrelW - v));
+  const gasketXL = useTransform(boundary, (v) => v - 1);   // left edge of 2px gasket line
+  const rodWidth = useTransform(boundary, (v) => Math.max(0, v - 18)); // rod from handle (x=18) to boundary
+
+  const rodY = barrelMidY - 3;
+  const rodH = 6;
 
   return (
     <div className="w-full max-w-md mx-auto animate-in fade-in duration-700 delay-150 fill-mode-both">
@@ -51,11 +64,6 @@ export default function SyringeDisplay() {
                 <stop offset="50%" stopColor="#141414" />
                 <stop offset="100%" stopColor="#1c1c1c" />
               </linearGradient>
-              <linearGradient id="gasketGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#2e2e2e" />
-                <stop offset="50%" stopColor="#1a1a1a" />
-                <stop offset="100%" stopColor="#2e2e2e" />
-              </linearGradient>
               <clipPath id="barrelClip">
                 <rect x={barrelX} y={barrelY} width={barrelW} height={barrelH} rx="2" />
               </clipPath>
@@ -72,7 +80,6 @@ export default function SyringeDisplay() {
               stroke="#333"
               strokeWidth="1"
             />
-            {/* Handle grip lines */}
             {[0, 7, 14].map((offset) => (
               <line
                 key={offset}
@@ -85,18 +92,16 @@ export default function SyringeDisplay() {
               />
             ))}
 
-            {/* === PLUNGER ROD (ANIMATED) === */}
+            {/* === PLUNGER ROD (ANIMATED — driven by shared spring) === */}
             <motion.rect
               x={18}
               y={rodY}
               height={rodH}
               rx="1"
-              fill="#252525"
-              stroke="#333"
+              fill="#1e1e1e"
+              stroke="#2a2a2a"
               strokeWidth="0.5"
-              initial={{ width: barrelX - 18 + barrelW - gasketW }}
-              animate={{ width: gasketX - 18 }}
-              transition={{ type: "spring", stiffness: 55, damping: 14 }}
+              width={rodWidth}
             />
 
             {/* === BARREL BODY === */}
@@ -111,25 +116,23 @@ export default function SyringeDisplay() {
               strokeWidth="1.5"
             />
 
-            {/* === LIQUID FILL (fills from RIGHT/needle side toward LEFT/plunger) === */}
-            {/* Extends 4px into the gasket to eliminate any spring-desync gap */}
+            {/* === LIQUID FILL (driven by shared spring) === */}
             <motion.rect
               y={barrelY + 1}
               height={barrelH - 2}
               fill="url(#liquidGradient)"
               clipPath="url(#barrelClip)"
-              initial={{ x: barrelX + barrelW, width: 0 }}
-              animate={{ x: liquidX - 4, width: fillW + 4 }}
-              transition={{ type: "spring", stiffness: 55, damping: 14 }}
+              x={liquidX}
+              width={liquidW}
             />
 
             {/* === GRADUATION TICKS === */}
-            {/* 0 is at the needle end (right), 100 is at the plunger end (left) */}
+            {/* 0 at needle end (right), 100 at plunger end (left) */}
             {Array.from({ length: 11 }).map((_, i) => {
               const xPos = barrelX + (i * barrelW) / 10;
               const isMajor = i % 2 === 0;
-              const label = (10 - i) * 10; // 100 at left → 0 at right (needle)
-              const isFilled = xPos > liquidX;
+              const label = (10 - i) * 10;
+              const isFilled = xPos > barrelX + barrelW - fillW;
               return (
                 <g key={i}>
                   <line
@@ -156,18 +159,14 @@ export default function SyringeDisplay() {
               );
             })}
 
-            {/* === PLUNGER GASKET (ANIMATED) === */}
+            {/* === PLUNGER GASKET — slim white line (driven by shared spring) === */}
             <motion.rect
-              y={barrelY - 5}
-              width={gasketW}
-              height={barrelH + 10}
-              rx="2"
-              fill="url(#gasketGrad)"
-              stroke="#444"
-              strokeWidth="1"
-              initial={{ x: barrelX + barrelW - gasketW }}
-              animate={{ x: gasketX }}
-              transition={{ type: "spring", stiffness: 55, damping: 14 }}
+              y={barrelY - 8}
+              width={2}
+              height={barrelH + 16}
+              rx="1"
+              fill="rgba(255,255,255,0.88)"
+              x={gasketXL}
             />
 
             {/* === BARREL END FLANGE (LEFT) === */}
@@ -200,7 +199,6 @@ export default function SyringeDisplay() {
               strokeWidth="1.2"
               strokeLinecap="round"
             />
-            {/* Needle bevel tip */}
             <line
               x1={345}
               y1={barrelMidY - 1}
@@ -212,11 +210,9 @@ export default function SyringeDisplay() {
           </svg>
         </div>
 
-        {/* Unit readout below syringe */}
+        {/* Unit readout */}
         <div className="flex items-baseline justify-between mt-3 px-1">
-          <div className="flex items-baseline gap-1.5">
-            <span className="font-mono text-xs text-muted-foreground uppercase tracking-widest">Draw</span>
-          </div>
+          <span className="font-mono text-xs text-muted-foreground uppercase tracking-widest">Draw</span>
           <div className="flex items-baseline gap-1">
             <motion.span
               key={units}
