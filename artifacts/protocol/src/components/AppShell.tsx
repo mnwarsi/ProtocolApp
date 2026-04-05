@@ -65,14 +65,16 @@ function BioLockedView() {
 }
 
 interface AppShellProps {
-  children: ReactNode;
+  calculatorSlot: ReactNode;
+  logSlot: ReactNode;
+  protocolSlot: ReactNode;
+  bioSlot?: ReactNode;
+  settingsSlot?: ReactNode;
 }
 
-export default function AppShell({ children }: AppShellProps) {
+export default function AppShell({ calculatorSlot, logSlot, protocolSlot, bioSlot, settingsSlot }: AppShellProps) {
   const [activeTab, setActiveTab] = useState<Tab>("calculator");
   const { hasPassphrase, isLocked, lock, tier } = useProtocolStore();
-
-  const childArray = Array.isArray(children) ? children : [children];
 
   const handleTabClick = (key: Tab) => {
     setActiveTab(key);
@@ -142,37 +144,42 @@ export default function AppShell({ children }: AppShellProps) {
       </header>
 
       {/* ── Main content ── */}
-      <main className="flex-1 w-full max-w-xl mx-auto p-4 md:p-5 pb-24 md:pb-6">
+      <main className="flex-1 w-full max-w-5xl mx-auto p-4 md:p-5 pb-24 md:pb-5">
+        {/* Calculator tab — full-width, no sidebar */}
         {activeTab === "calculator" && (
-          <div className="space-y-4">
-            {childArray[0]}
-            {childArray[1]}
+          <div className="w-full space-y-4">
+            {calculatorSlot}
           </div>
         )}
 
+        {/* Log tab — full-width */}
         {activeTab === "log" && (
-          <div>
-            {childArray[2] ?? null}
+          <div className="w-full">
+            {logSlot}
           </div>
         )}
 
+        {/* Protocol tab — full-width */}
         {activeTab === "protocol" && (
-          <div>
-            {childArray[3] ?? null}
+          <div className="w-full">
+            {protocolSlot ?? null}
           </div>
         )}
 
+        {/* Bio tab — full-width */}
         {activeTab === "bio" && (
-          <div>
-            {tier === "pro" ? (childArray[4] ?? null) : <BioLockedView />}
+          <div className="w-full">
+            {tier === "pro" ? (bioSlot ?? null) : <BioLockedView />}
           </div>
         )}
 
+        {/* Settings tab — full-width */}
         {activeTab === "settings" && (
-          <div>
-            {childArray[5] ?? null}
+          <div className="w-full">
+            {settingsSlot ?? null}
           </div>
         )}
+
       </main>
 
       {/* ── Mobile bottom nav ── */}

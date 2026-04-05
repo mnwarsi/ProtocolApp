@@ -48,14 +48,18 @@ export default function ProtocolApp() {
     <>
       <CloudSyncOnMutation />
       <InstallPrompt />
-      <AppShell>
-        <CalculatorPanel />
-        <SyringeDisplay />
-        <LogPanel />
-        <ProtocolPanel />
-        <BiofeedbackPanel />
-        <SettingsPanel />
-      </AppShell>
+      <AppShell
+        calculatorSlot={
+          <>
+            <CalculatorPanel />
+            <SyringeDisplay />
+          </>
+        }
+        logSlot={<LogPanel />}
+        protocolSlot={<ProtocolPanel />}
+        bioSlot={<BiofeedbackPanel />}
+        settingsSlot={<SettingsPanel />}
+      />
     </>
   );
 }
