@@ -1,3 +1,4 @@
+import { randomBytes } from "crypto";
 import { Router, type IRouter } from "express";
 import { logger } from "../lib/logger";
 
@@ -14,6 +15,32 @@ const WHOOP_TOKEN_URL = "https://api.prod.whoop.com/oauth/oauth2/token";
 const WHOOP_API_URL = "https://api.prod.whoop.com/developer/v1";
 
 const REDIRECT_URI = `${APP_BASE_URL}/api/wearable/callback`;
+
+// ── OAuth CSRF state nonce store (in-memory, expires after 10 min) ─────────────
+
+interface PendingState {
+  nonce: string;
+  expiresAt: number;
+}
+
+let pendingOAuthState: PendingState | null = null;
+
+function generateOAuthState(): string {
+  const nonce = randomBytes(24).toString("hex");
+  pendingOAuthState = { nonce, expiresAt: Date.now() + 10 * 60 * 1000 };
+  return nonce;
+}
+
+function validateOAuthState(state: string | undefined): boolean {
+  if (!pendingOAuthState) return false;
+  if (Date.now() > pendingOAuthState.expiresAt) {
+    pendingOAuthState = null;
+    return false;
+  }
+  const valid = state === pendingOAuthState.nonce;
+  pendingOAuthState = null;
+  return valid;
+}
 
 // ── In-memory token store (single-user, Stage 3 only) ─────────────────────────
 
@@ -143,11 +170,14 @@ router.get("/wearable/connect", (_req, res) => {
     return;
   }
 
+  const state = generateOAuthState();
+
   const params = new URLSearchParams({
     client_id: WHOOP_CLIENT_ID,
     redirect_uri: REDIRECT_URI,
     response_type: "code",
     scope: "read:recovery read:sleep read:profile read:heart_rate",
+    state,
   });
 
   res.redirect(`${WHOOP_AUTH_URL}?${params.toString()}`);
@@ -155,11 +185,17 @@ router.get("/wearable/connect", (_req, res) => {
 
 // GET /api/wearable/callback — OAuth callback
 router.get("/wearable/callback", async (req, res) => {
-  const { code, error } = req.query as Record<string, string | undefined>;
+  const { code, error, state } = req.query as Record<string, string | undefined>;
 
   if (error || !code) {
     logger.warn({ error }, "Wearable OAuth callback error");
     res.redirect(`${APP_BASE_URL}/?wearable_error=${encodeURIComponent(error ?? "cancelled")}#settings`);
+    return;
+  }
+
+  if (!validateOAuthState(state)) {
+    logger.warn({ state }, "OAuth state mismatch — possible CSRF");
+    res.redirect(`${APP_BASE_URL}/?wearable_error=state_mismatch#settings`);
     return;
   }
 
