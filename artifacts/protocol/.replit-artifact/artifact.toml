@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Protocol"
+version = "1.0.0"
+id = "artifacts/protocol"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 23567
+
+[services.development]
+run = "pnpm --filter @workspace/protocol run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/protocol", "run", "build" ]
+publicDir = "artifacts/protocol/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23567"
+BASE_PATH = "/"
