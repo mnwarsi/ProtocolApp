@@ -1,223 +1,139 @@
-import { useState, type ReactNode } from "react";
-import { Activity, Lock, Zap } from "lucide-react";
+import type { ReactNode } from "react";
+import {
+  Activity,
+  BookOpenText,
+  FlaskConical,
+  LineChart,
+  Settings2,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useProtocolStore } from "@/store/protocolStore";
 
-type Tab = "calculator" | "log" | "protocol" | "bio" | "settings";
+export type AppTab = "today" | "library" | "inventory" | "insights" | "settings";
 
-const TABS: { key: Tab; label: string }[] = [
-  { key: "calculator", label: "Calculator" },
-  { key: "log", label: "Log" },
-  { key: "protocol", label: "Protocol" },
-  { key: "bio", label: "Bio" },
-  { key: "settings", label: "Settings" },
+const TABS: Array<{ key: AppTab; label: string; icon: typeof Activity }> = [
+  { key: "today", label: "Today", icon: Activity },
+  { key: "library", label: "Library", icon: BookOpenText },
+  { key: "inventory", label: "Inventory", icon: FlaskConical },
+  { key: "insights", label: "Insights", icon: LineChart },
+  { key: "settings", label: "Settings", icon: Settings2 },
 ];
 
-const PRO_TABS: Set<Tab> = new Set(["bio"]);
-
-function BioLockedView() {
-  const basePath = (import.meta.env.BASE_URL as string).replace(/\/$/, "");
-  return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-5 px-6 animate-in fade-in duration-500">
-      <div
-        className="w-14 h-14 rounded-full flex items-center justify-center bg-cyan/5 border border-cyan/20"
-        style={{ boxShadow: "0 0 24px rgba(0,242,255,0.08)" }}
-      >
-        <Zap className="w-6 h-6 text-cyan/60" style={{ filter: "drop-shadow(0 0 8px rgba(0,242,255,0.5))" }} />
-      </div>
-      <div>
-        <h3 className="text-sm font-bold text-foreground/80 uppercase tracking-widest mb-1">
-          Biofeedback — Pro
-        </h3>
-        <p className="text-[11px] text-muted-foreground/40 leading-relaxed max-w-[240px]">
-          Real-time HRV, recovery, and dose-correlation charts require Protocol Pro.
-        </p>
-      </div>
-      <div className="grid grid-cols-2 gap-2 text-[9px] font-mono w-full max-w-xs">
-        {[
-          { label: "HRV overlay", desc: "Dose vs recovery" },
-          { label: "Recovery trends", desc: "Daily readiness" },
-          { label: "Resting HR", desc: "Cardiac baseline" },
-          { label: "Sleep quality", desc: "Total duration" },
-        ].map(({ label, desc }) => (
-          <div key={label} className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-lg px-2.5 py-2 opacity-50">
-            <div className="text-foreground/40 font-semibold mb-0.5">{label}</div>
-            <div className="text-muted-foreground/25">{desc}</div>
-          </div>
-        ))}
-      </div>
-      <a
-        href={`${basePath}/settings`}
-        onClick={(e) => {
-          e.preventDefault();
-        }}
-        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-md bg-cyan/10 hover:bg-cyan/15 border border-cyan/30 hover:border-cyan/50 text-cyan text-xs font-bold uppercase tracking-widest transition-all cursor-pointer"
-        style={{ boxShadow: "0 0 16px rgba(0,242,255,0.08)" }}
-      >
-        <Zap className="w-3.5 h-3.5" />
-        Upgrade to Pro — $19.99/mo
-      </a>
-      <p className="text-[9px] font-mono text-muted-foreground/20">
-        Sign in and upgrade in the Settings tab
-      </p>
-    </div>
-  );
-}
-
 interface AppShellProps {
-  calculatorSlot: ReactNode;
-  logSlot: ReactNode;
-  protocolSlot: ReactNode;
-  bioSlot?: ReactNode;
-  settingsSlot?: ReactNode;
+  activeTab: AppTab;
+  onTabChange: (tab: AppTab) => void;
+  todaySlot: ReactNode;
+  librarySlot: ReactNode;
+  inventorySlot: ReactNode;
+  insightsSlot: ReactNode;
+  settingsSlot: ReactNode;
 }
 
-export default function AppShell({ calculatorSlot, logSlot, protocolSlot, bioSlot, settingsSlot }: AppShellProps) {
-  const [activeTab, setActiveTab] = useState<Tab>("calculator");
-  const { hasPassphrase, isLocked, lock, tier } = useProtocolStore();
-
-  const handleTabClick = (key: Tab) => {
-    setActiveTab(key);
-  };
+export default function AppShell({
+  activeTab,
+  onTabChange,
+  todaySlot,
+  librarySlot,
+  inventorySlot,
+  insightsSlot,
+  settingsSlot,
+}: AppShellProps) {
+  const currentSlot =
+    activeTab === "today"
+      ? todaySlot
+      : activeTab === "library"
+        ? librarySlot
+        : activeTab === "inventory"
+          ? inventorySlot
+          : activeTab === "insights"
+            ? insightsSlot
+            : settingsSlot;
 
   return (
     <div className="min-h-[100dvh] flex flex-col bg-background text-foreground">
-      {/* ── Header ── */}
-      <header className="sticky top-0 z-50 flex items-center h-14 px-4 md:px-6 border-b border-[#181818] bg-background/90 backdrop-blur-md">
-        {/* Logo */}
-        <div className="flex items-center gap-2 mr-6">
-          <Activity
-            className="w-4 h-4 text-cyan"
-            style={{ filter: "drop-shadow(0 0 6px rgba(0,242,255,0.6))" }}
-          />
-          <span
-            className="text-[11px] font-bold tracking-[0.2em] text-foreground uppercase"
-            style={{ letterSpacing: "0.25em" }}
-          >
-            PROTOCOL
-          </span>
-        </div>
+      <header className="sticky top-0 z-50 border-b border-white/6 bg-background/92 backdrop-blur-xl">
+        <div className="mx-auto flex h-15 w-full max-w-5xl items-center justify-between px-4 md:px-6">
+          <div className="flex items-center gap-3">
+            <div
+              className="flex h-9 w-9 items-center justify-center rounded-2xl border border-cyan/20 bg-cyan/8"
+              style={{ boxShadow: "0 0 18px rgba(0,242,255,0.08)" }}
+            >
+              <Activity className="h-4 w-4 text-cyan" />
+            </div>
+            <div>
+              <div className="text-[12px] font-semibold tracking-[0.16em] text-foreground uppercase">
+                Protocol
+              </div>
+              <div className="text-[11px] text-muted-foreground/60">
+                Calm tracking for precise dosing
+              </div>
+            </div>
+          </div>
 
-        {/* Desktop tabs */}
-        <nav className="hidden md:flex items-end h-full gap-0 flex-1 overflow-x-auto">
-          {TABS.map(({ key, label }) => {
+          <nav className="hidden items-center gap-2 md:flex">
+            {TABS.map(({ key, label, icon: Icon }) => {
+              const isActive = activeTab === key;
+              const isSettings = key === "settings";
+              return (
+                <button
+                  key={key}
+                  onClick={() => onTabChange(key)}
+                  className={cn(
+                    "flex items-center gap-2 rounded-full border px-3.5 py-2 text-sm transition-all",
+                    isActive
+                      ? "border-cyan/35 bg-cyan/10 text-cyan"
+                      : isSettings
+                        ? "border-white/8 bg-white/[0.02] text-muted-foreground/45 hover:text-muted-foreground/70"
+                        : "border-white/8 bg-white/[0.03] text-muted-foreground/70 hover:border-white/12 hover:text-foreground/85"
+                  )}
+                  style={isActive ? { boxShadow: "0 0 18px rgba(0,242,255,0.08)" } : undefined}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  <span>{label}</span>
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+      </header>
+
+      <main className="mx-auto flex-1 w-full max-w-5xl px-4 pb-24 pt-5 md:px-6 md:pb-8">
+        {currentSlot}
+      </main>
+
+      <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-white/6 bg-[#050607]/94 backdrop-blur-xl md:hidden">
+        <div className="mx-auto grid h-18 max-w-5xl grid-cols-5 px-2">
+          {TABS.map(({ key, label, icon: Icon }) => {
             const isActive = activeTab === key;
-            const isPro = PRO_TABS.has(key);
-            const isLocked_ = isPro && tier !== "pro";
+            const isSettings = key === "settings";
             return (
               <button
                 key={key}
-                data-testid={`tab-desktop-${key}`}
-                onClick={() => handleTabClick(key)}
+                onClick={() => onTabChange(key)}
                 className={cn(
-                  "relative px-3 h-full flex items-center gap-1.5 text-xs font-medium tracking-wider uppercase transition-colors duration-150 whitespace-nowrap",
-                  isActive ? "text-cyan" : "text-muted-foreground/60 hover:text-muted-foreground"
+                  "flex flex-col items-center justify-center gap-1 rounded-2xl text-[10px] transition-all",
+                  isActive
+                    ? "text-cyan"
+                    : isSettings
+                      ? "text-muted-foreground/35"
+                      : "text-muted-foreground/55"
                 )}
-                style={isActive ? { textShadow: "0 0 12px rgba(0,242,255,0.6)" } : undefined}
               >
-                {label}
-                {isLocked_ && (
-                  <Lock className="w-2.5 h-2.5 opacity-40" />
-                )}
-                {isActive && (
-                  <span
-                    className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full bg-cyan"
-                    style={{ boxShadow: "0 0 8px rgba(0,242,255,0.8), 0 0 16px rgba(0,242,255,0.4)" }}
-                  />
-                )}
+                <div
+                  className={cn(
+                    "flex h-9 w-9 items-center justify-center rounded-2xl border",
+                    isActive
+                      ? "border-cyan/30 bg-cyan/10"
+                      : "border-transparent bg-transparent"
+                  )}
+                  style={isActive ? { boxShadow: "0 0 14px rgba(0,242,255,0.08)" } : undefined}
+                >
+                  <Icon className="h-4 w-4" />
+                </div>
+                <span className="font-medium">{label}</span>
               </button>
             );
           })}
-        </nav>
-
-        {/* Lock button */}
-        {hasPassphrase && !isLocked && (
-          <button
-            onClick={() => lock()}
-            title="Lock app"
-            className="ml-auto hidden md:flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-muted-foreground/40 hover:text-cyan/80 transition-colors px-2 py-1 border border-transparent hover:border-cyan/20 rounded"
-          >
-            <Lock className="w-3 h-3" />
-            Lock
-          </button>
-        )}
-      </header>
-
-      {/* ── Main content ── */}
-      <main className="flex-1 w-full max-w-5xl mx-auto p-4 md:p-5 pb-24 md:pb-5">
-        {/* Calculator tab — full-width, no sidebar */}
-        {activeTab === "calculator" && (
-          <div className="w-full space-y-4">
-            {calculatorSlot}
-          </div>
-        )}
-
-        {/* Log tab — full-width */}
-        {activeTab === "log" && (
-          <div className="w-full">
-            {logSlot}
-          </div>
-        )}
-
-        {/* Protocol tab — full-width */}
-        {activeTab === "protocol" && (
-          <div className="w-full">
-            {protocolSlot ?? null}
-          </div>
-        )}
-
-        {/* Bio tab — full-width */}
-        {activeTab === "bio" && (
-          <div className="w-full">
-            {tier === "pro" ? (bioSlot ?? null) : <BioLockedView />}
-          </div>
-        )}
-
-        {/* Settings tab — full-width */}
-        {activeTab === "settings" && (
-          <div className="w-full">
-            {settingsSlot ?? null}
-          </div>
-        )}
-
-      </main>
-
-      {/* ── Mobile bottom nav ── */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-stretch h-14 border-t border-[#181818] bg-[#050505]/95 backdrop-blur-md">
-        {TABS.map(({ key, label }) => {
-          const isActive = activeTab === key;
-          const isPro = PRO_TABS.has(key);
-          const isLocked_ = isPro && tier !== "pro";
-          return (
-            <button
-              key={key}
-              data-testid={`tab-mobile-${key}`}
-              onClick={() => handleTabClick(key)}
-              className={cn(
-                "flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors duration-150",
-                isActive ? "text-cyan" : "text-muted-foreground/40"
-              )}
-            >
-              <div className="relative">
-                <span
-                  className="text-[9px] font-medium tracking-widest uppercase"
-                  style={isActive ? { textShadow: "0 0 8px rgba(0,242,255,0.5)" } : undefined}
-                >
-                  {label}
-                </span>
-                {isLocked_ && (
-                  <Lock className="w-2 h-2 absolute -top-1.5 -right-2.5 opacity-30" />
-                )}
-              </div>
-              {isActive && (
-                <span
-                  className="w-4 h-0.5 rounded-full bg-cyan"
-                  style={{ boxShadow: "0 0 6px rgba(0,242,255,0.8)" }}
-                />
-              )}
-            </button>
-          );
-        })}
+        </div>
       </nav>
     </div>
   );

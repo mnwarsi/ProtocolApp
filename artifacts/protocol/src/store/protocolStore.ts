@@ -31,6 +31,7 @@ export interface DoseLogEntry {
   id: string;
   compound: string;
   compoundId: string;
+  inventoryVialId?: string;
   dose: number;
   doseUnit: DoseUnit;
   units: number;
@@ -72,6 +73,26 @@ export interface InjectionSiteEntry {
   timestamp: string;
 }
 
+export type InventoryVialStatus = "active" | "finished" | "expired" | "archived";
+
+export interface InventoryVial {
+  id: string;
+  compoundId: string;
+  label: string;
+  vialAmountMg: number;
+  diluentMl: number;
+  concentrationMgPerMl: number;
+  concentrationMcgPerUnit: number;
+  defaultDose: number;
+  defaultDoseUnit: DoseUnit;
+  reconstitutedAt: string;
+  openedAt: string;
+  estimatedRemainingMg: number;
+  estimatedRemainingUnits: number;
+  status: InventoryVialStatus;
+  notes?: string;
+}
+
 // ─── Sensitive payload (encrypted or plain) ───────────────────────────────────
 
 interface SensitivePayload {
@@ -79,6 +100,7 @@ interface SensitivePayload {
   protocols: ActiveProtocol[];
   templates: SavedTemplate[];
   injectionSites?: InjectionSiteEntry[];
+  inventoryVials?: InventoryVial[];
   syncedAt?: string;
 }
 
@@ -110,6 +132,7 @@ interface RuntimeState {
   protocols: ActiveProtocol[];
   templates: SavedTemplate[];
   injectionSites: InjectionSiteEntry[];
+  inventoryVials: InventoryVial[];
 }
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
@@ -158,6 +181,23 @@ interface InjectionSiteActions {
   clearInjectionSite: (siteId: string) => void;
 }
 
+interface InventoryActions {
+  addInventoryVial: (
+    vial: Omit<
+      InventoryVial,
+      | "id"
+      | "openedAt"
+      | "reconstitutedAt"
+      | "estimatedRemainingMg"
+      | "estimatedRemainingUnits"
+      | "status"
+      | "label"
+    > & { label?: string; notes?: string }
+  ) => string;
+  updateInventoryVial: (id: string, updates: Partial<InventoryVial>) => void;
+  archiveInventoryVial: (id: string) => void;
+}
+
 interface TierState {
   tier: "free" | "pro";
   cloudSyncing: boolean;
@@ -183,6 +223,7 @@ type ProtocolStore = CalculatorState &
   ProtocolActions &
   TemplateActions &
   InjectionSiteActions &
+  InventoryActions &
   TierActions;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -236,6 +277,91 @@ function savePlainPayload(payload: SensitivePayload): void {
   }
 }
 
+function normalizeDoseToMg(dose: number, doseUnit: DoseUnit): number {
+  return doseUnit === "mg" ? dose : dose / 1000;
+}
+
+function createInventoryLabel(compoundId: string, reconstitutedAt: string): string {
+  const compound = getCompoundById(compoundId);
+  const shortDate = new Date(reconstitutedAt).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+  return `${compound?.shortName ?? "Vial"} · ${shortDate}`;
+}
+
+export function getInventoryRemaining(vial: InventoryVial, entries: DoseLogEntry[]) {
+  const usedMg = entries
+    .filter((entry) => entry.inventoryVialId === vial.id)
+    .reduce((sum, entry) => sum + normalizeDoseToMg(entry.dose, entry.doseUnit), 0);
+
+  const estimatedRemainingMg = Math.max(0, vial.vialAmountMg - usedMg);
+  const estimatedRemainingUnits = Math.max(
+    0,
+    (estimatedRemainingMg * 1000) / vial.concentrationMcgPerUnit
+  );
+
+  return {
+    estimatedRemainingMg,
+    estimatedRemainingUnits,
+  };
+}
+
+export function getDerivedInventoryStatus(vial: InventoryVial, entries: DoseLogEntry[]): InventoryVialStatus {
+  if (vial.status === "archived") return "archived";
+
+  const remaining = getInventoryRemaining(vial, entries);
+  const ageMs = Date.now() - new Date(vial.reconstitutedAt).getTime();
+  const ageDays = ageMs / 86400_000;
+
+  if (remaining.estimatedRemainingMg <= 0.001 || remaining.estimatedRemainingUnits <= 0.1) {
+    return "finished";
+  }
+  if (ageDays >= 30) {
+    return "expired";
+  }
+  return "active";
+}
+
+export function hydrateInventoryVial(vial: InventoryVial, entries: DoseLogEntry[]): InventoryVial {
+  const remaining = getInventoryRemaining(vial, entries);
+  return {
+    ...vial,
+    ...remaining,
+    status: getDerivedInventoryStatus(vial, entries),
+  };
+}
+
+export function getActiveVialsForCompound(
+  inventoryVials: InventoryVial[],
+  entries: DoseLogEntry[],
+  compoundId: string
+): InventoryVial[] {
+  return inventoryVials
+    .filter((vial) => vial.compoundId === compoundId)
+    .map((vial) => hydrateInventoryVial(vial, entries))
+    .filter((vial) => vial.status === "active")
+    .sort((a, b) => new Date(b.reconstitutedAt).getTime() - new Date(a.reconstitutedAt).getTime());
+}
+
+export function getRecommendedVialForCompound(
+  inventoryVials: InventoryVial[],
+  entries: DoseLogEntry[],
+  compoundId: string
+): InventoryVial | null {
+  return getActiveVialsForCompound(inventoryVials, entries, compoundId)[0] ?? null;
+}
+
+export function getLastLoggedForCompound(entries: DoseLogEntry[], compoundId: string): DoseLogEntry | null {
+  return entries.find((entry) => entry.compoundId === compoundId) ?? null;
+}
+
+export function getTypicalDoseForCompound(entries: DoseLogEntry[], compoundId: string): number | null {
+  const compoundEntries = entries.filter((entry) => entry.compoundId === compoundId).slice(0, 5);
+  if (compoundEntries.length === 0) return null;
+  return compoundEntries.reduce((sum, entry) => sum + entry.dose, 0) / compoundEntries.length;
+}
+
 // Auto-lock timer
 let autoLockTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -253,8 +379,8 @@ export const useProtocolStore = create<ProtocolStore>()(
     (set, get) => {
       // Helper: persist sensitive data after each mutation
       const syncSensitive = (): void => {
-        const { entries, protocols, templates, injectionSites, hasPassphrase, sessionKey } = get();
-        const payload: SensitivePayload = { entries, protocols, templates, injectionSites };
+        const { entries, protocols, templates, injectionSites, inventoryVials, hasPassphrase, sessionKey } = get();
+        const payload: SensitivePayload = { entries, protocols, templates, injectionSites, inventoryVials };
         if (hasPassphrase && sessionKey) {
           encryptPayload(sessionKey, payload)
             .then((encrypted) => {
@@ -301,6 +427,7 @@ export const useProtocolStore = create<ProtocolStore>()(
         protocols: [],
         templates: [],
         injectionSites: [],
+        inventoryVials: [],
 
         // ── Tier + cloud sync ──
         tier: "free",
@@ -377,6 +504,9 @@ export const useProtocolStore = create<ProtocolStore>()(
               protocols: payload.protocols ?? [],
               templates: payload.templates ?? [],
               injectionSites: payload.injectionSites ?? [],
+              inventoryVials: (payload.inventoryVials ?? []).map((vial) =>
+                hydrateInventoryVial(vial, payload.entries ?? [])
+              ),
             });
             startAutoLock();
           } catch {
@@ -394,15 +524,16 @@ export const useProtocolStore = create<ProtocolStore>()(
             protocols: [],
             templates: [],
             injectionSites: [],
+            inventoryVials: [],
           });
         },
 
         setPassphrase: async (passphrase) => {
-          const { entries, protocols, templates, injectionSites } = get();
+          const { entries, protocols, templates, injectionSites, inventoryVials } = get();
           const salt = await generateSalt();
           const saltB64 = saltToBase64(salt);
           const key = await deriveKey(passphrase, salt);
-          const payload: SensitivePayload = { entries, protocols, templates, injectionSites };
+          const payload: SensitivePayload = { entries, protocols, templates, injectionSites, inventoryVials };
           const encrypted = await encryptPayload(key, payload);
           localStorage.setItem(ENCRYPTED_STORAGE_KEY, encrypted);
           localStorage.removeItem(PLAIN_STORAGE_KEY);
@@ -423,8 +554,8 @@ export const useProtocolStore = create<ProtocolStore>()(
             await decryptPayload(key, encryptedRaw);
           }
           // Passphrase verified — save current in-memory data as plaintext
-          const { entries, protocols, templates, injectionSites } = get();
-          savePlainPayload({ entries, protocols, templates, injectionSites });
+          const { entries, protocols, templates, injectionSites, inventoryVials } = get();
+          savePlainPayload({ entries, protocols, templates, injectionSites, inventoryVials });
           localStorage.removeItem(ENCRYPTED_STORAGE_KEY);
           clearAutoLockTimer();
           set({ hasPassphrase: false, saltBase64: null, sessionKey: null, isLocked: false });
@@ -448,17 +579,31 @@ export const useProtocolStore = create<ProtocolStore>()(
           };
           set((state) => ({
             entries: [newEntry, ...state.entries].slice(0, 200),
+            inventoryVials: state.inventoryVials.map((vial) =>
+              vial.id === newEntry.inventoryVialId
+                ? hydrateInventoryVial(vial, [newEntry, ...state.entries])
+                : vial
+            ),
           }));
           syncSensitive();
         },
 
         deleteEntry: (id) => {
-          set((state) => ({ entries: state.entries.filter((e) => e.id !== id) }));
+          set((state) => {
+            const nextEntries = state.entries.filter((e) => e.id !== id);
+            return {
+              entries: nextEntries,
+              inventoryVials: state.inventoryVials.map((vial) => hydrateInventoryVial(vial, nextEntries)),
+            };
+          });
           syncSensitive();
         },
 
         clearAll: () => {
-          set({ entries: [] });
+          set((state) => ({
+            entries: [],
+            inventoryVials: state.inventoryVials.map((vial) => hydrateInventoryVial(vial, [])),
+          }));
           syncSensitive();
         },
 
@@ -563,6 +708,53 @@ export const useProtocolStore = create<ProtocolStore>()(
           syncSensitive();
         },
 
+        // ── Inventory actions ──
+        addInventoryVial: (vial) => {
+          const compound = getCompoundById(vial.compoundId);
+          const now = new Date().toISOString();
+          const nextVial: InventoryVial = {
+            id: crypto.randomUUID(),
+            compoundId: vial.compoundId,
+            label: vial.label?.trim() || createInventoryLabel(vial.compoundId, now),
+            vialAmountMg: vial.vialAmountMg,
+            diluentMl: vial.diluentMl,
+            concentrationMgPerMl: vial.concentrationMgPerMl,
+            concentrationMcgPerUnit: vial.concentrationMcgPerUnit,
+            defaultDose: vial.defaultDose,
+            defaultDoseUnit: vial.defaultDoseUnit,
+            reconstitutedAt: now,
+            openedAt: now,
+            estimatedRemainingMg: vial.vialAmountMg,
+            estimatedRemainingUnits: (vial.vialAmountMg * 1000) / vial.concentrationMcgPerUnit,
+            status: "active",
+            notes: vial.notes?.trim() || compound?.notes,
+          };
+          set((state) => ({
+            inventoryVials: [nextVial, ...state.inventoryVials],
+          }));
+          syncSensitive();
+          return nextVial.id;
+        },
+
+        updateInventoryVial: (id, updates) => {
+          set((state) => ({
+            inventoryVials: state.inventoryVials.map((vial) => {
+              if (vial.id !== id) return vial;
+              return hydrateInventoryVial({ ...vial, ...updates }, state.entries);
+            }),
+          }));
+          syncSensitive();
+        },
+
+        archiveInventoryVial: (id) => {
+          set((state) => ({
+            inventoryVials: state.inventoryVials.map((vial) =>
+              vial.id === id ? { ...vial, status: "archived" } : vial
+            ),
+          }));
+          syncSensitive();
+        },
+
         // ── Tier + cloud sync actions ──
         setTier: (tier) => set({ tier }),
         setSignedInUserId: (userId) => set({ signedInUserId: userId }),
@@ -583,6 +775,7 @@ export const useProtocolStore = create<ProtocolStore>()(
               protocols: state.protocols,
               templates: state.templates,
               injectionSites: state.injectionSites,
+              inventoryVials: state.inventoryVials,
               syncedAt,
             };
             const blob = await encryptForCloud(userId, payload);
@@ -620,6 +813,9 @@ export const useProtocolStore = create<ProtocolStore>()(
               protocols: payload.protocols ?? [],
               templates: payload.templates ?? [],
               injectionSites: payload.injectionSites ?? [],
+              inventoryVials: (payload.inventoryVials ?? []).map((vial) =>
+                hydrateInventoryVial(vial, payload.entries ?? [])
+              ),
               lastCloudSyncAt: cloudSyncedAt,
             });
             return true;
@@ -660,6 +856,9 @@ const bootstrapStore = () => {
         protocols: payload.protocols ?? [],
         templates: payload.templates ?? [],
         injectionSites: payload.injectionSites ?? [],
+        inventoryVials: (payload.inventoryVials ?? []).map((vial) =>
+          hydrateInventoryVial(vial, payload.entries ?? [])
+        ),
         isLocked: false,
       });
     }
