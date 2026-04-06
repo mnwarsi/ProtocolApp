@@ -19,6 +19,7 @@ import {
 import { SignOutButton, useAuth, useUser } from "@clerk/react";
 import { useProtocolStore, type GoalFocus, type UnitSystem } from "@/store/protocolStore";
 import { cn } from "@/lib/utils";
+import { releaseFlags } from "@/lib/releaseFlags";
 
 const HAS_CLERK = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const GOAL_OPTIONS: Array<{ key: GoalFocus; label: string }> = [
@@ -394,7 +395,7 @@ function UpgradeCardInner({ isSignedIn }: { isSignedIn: boolean }) {
       <div className="flex items-center justify-between gap-3">
         <div>
           <div className="text-sm font-medium text-foreground">Protocol Pro</div>
-          <div className="mt-1 text-sm text-muted-foreground/66">Cloud sync, wearable insights, unlimited protocols.</div>
+          <div className="mt-1 text-sm text-muted-foreground/66">Cloud sync, unlimited protocols, and premium account features.</div>
         </div>
         <button
           onClick={() => void handleUpgrade()}
@@ -527,11 +528,11 @@ function WearableCard() {
 
 function ConnectedCard() {
   return (
-    <SectionCard title="Connected" subtitle="Account, sync, and device connections.">
+    <SectionCard title="Connected" subtitle="Account and sync for this device.">
       <div className="space-y-3">
         <AuthCard />
         <UpgradeCard />
-        <WearableCard />
+        {releaseFlags.enableWearables ? <WearableCard /> : null}
       </div>
     </SectionCard>
   );

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   ArrowRight,
@@ -9,19 +9,19 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { getCompoundById } from "@/data/compounds";
-import { convertToMcg, formatConcentration, formatRelativeTime, formatUnits, getNextDoseTime } from "@/lib/mathEngine";
+import { calculate, convertToMcg, formatConcentration, formatRelativeTime, formatUnits, getNextDoseTime } from "@/lib/mathEngine";
 import { compoundColor } from "@/lib/compoundColor";
+import SyringeDisplay from "@/components/SyringeDisplay";
 import {
-  getActiveVialsForCompound,
   getLastLoggedForCompound,
-  getRecommendedVialForCompound,
+  getProtocolProgress,
   getTypicalDoseForCompound,
+  getVialSelectionStateForCompound,
   type ActiveProtocol,
   type DoseLogEntry,
   type InventoryVial,
   useProtocolStore,
 } from "@/store/protocolStore";
-import { cn } from "@/lib/utils";
 
 interface TodayPanelProps {
   onOpenInventory: () => void;
@@ -41,9 +41,9 @@ function getNextDoseCard(protocols: ActiveProtocol[], entries: DoseLogEntry[]): 
 
   const ranked = activeProtocols
     .map((protocol) => {
-      const lastDose = entries.find((entry) => entry.compoundId === protocol.compoundId);
-      const nextDoseAt = lastDose
-        ? getNextDoseTime(new Date(lastDose.timestamp), protocol.frequency, protocol.customIntervalHours)
+      const { activeStep, lastEntry } = getProtocolProgress(protocol, entries);
+      const nextDoseAt = lastEntry
+        ? getNextDoseTime(new Date(lastEntry.timestamp), activeStep.frequency, activeStep.customIntervalHours)
         : new Date(protocol.startDate);
       return { protocol, nextDoseAt };
     })
@@ -52,9 +52,7 @@ function getNextDoseCard(protocols: ActiveProtocol[], entries: DoseLogEntry[]): 
   return ranked[0] ?? { protocol: null, nextDoseAt: null };
 }
 
-function getDoseUnitsForVial(vial: InventoryVial, protocol: ActiveProtocol | null, fallbackDose: number, fallbackUnit: "mcg" | "mg") {
-  const dose = protocol?.dose ?? fallbackDose;
-  const doseUnit = protocol?.doseUnit ?? fallbackUnit;
+function getDoseUnitsForVial(vial: InventoryVial, dose: number, doseUnit: "mcg" | "mg") {
   const targetDoseMcg = convertToMcg(dose, doseUnit);
   return targetDoseMcg / vial.concentrationMcgPerUnit;
 }
@@ -67,30 +65,45 @@ export default function TodayPanel({ onOpenInventory, onOpenInsights }: TodayPan
     selectedCompoundId,
     targetDose,
     targetDoseUnit,
+    vialSizeMg,
+    waterVolumeMl,
     result,
     logDose,
   } = useProtocolStore();
 
   const [showConfirm, setShowConfirm] = useState(false);
   const [selectedVialId, setSelectedVialId] = useState<string | null>(null);
+  const [actualDose, setActualDose] = useState<number>(0);
+  const [actualDoseUnit, setActualDoseUnit] = useState<"mcg" | "mg">("mcg");
+  const [actualTimestamp, setActualTimestamp] = useState("");
 
   const nextDoseCard = useMemo(() => getNextDoseCard(protocols, entries), [protocols, entries]);
+  const protocolProgress = nextDoseCard.protocol ? getProtocolProgress(nextDoseCard.protocol, entries) : null;
+  const activeStep = protocolProgress?.activeStep ?? null;
   const heroCompoundId = nextDoseCard.protocol?.compoundId ?? selectedCompoundId;
   const compound = getCompoundById(heroCompoundId);
   const color = compoundColor(heroCompoundId);
-  const activeVials = getActiveVialsForCompound(inventoryVials, entries, heroCompoundId);
-  const recommendedVial = getRecommendedVialForCompound(inventoryVials, entries, heroCompoundId);
+  const vialSelection = getVialSelectionStateForCompound(inventoryVials, entries, heroCompoundId);
+  const activeVials = vialSelection.vials;
   const chosenVial =
     activeVials.find((vial) => vial.id === selectedVialId) ??
-    (activeVials.length > 1 ? null : recommendedVial);
+    (vialSelection.mode === "mixed_concentrations" ? null : vialSelection.defaultVial);
 
   const lastLogged = getLastLoggedForCompound(entries, heroCompoundId);
   const typicalDose = getTypicalDoseForCompound(entries, heroCompoundId);
-  const targetDoseValue = nextDoseCard.protocol?.dose ?? targetDose;
-  const targetDoseValueUnit = nextDoseCard.protocol?.doseUnit ?? targetDoseUnit;
+  const targetDoseValue = activeStep?.dose ?? targetDose;
+  const targetDoseValueUnit = activeStep?.doseUnit ?? targetDoseUnit;
+  const effectiveDose = actualDose;
+  const effectiveDoseUnit = actualDoseUnit;
+  const adHocResult = calculate({
+    vialSizeMg: nextDoseCard.protocol?.vialAmount ?? vialSizeMg,
+    waterVolumeMl: nextDoseCard.protocol?.waterAmount ?? waterVolumeMl,
+    targetDose: effectiveDose,
+    targetDoseUnit: effectiveDoseUnit,
+  });
   const exactUnits = chosenVial
-    ? getDoseUnitsForVial(chosenVial, nextDoseCard.protocol, targetDose, targetDoseUnit)
-    : result?.syringeUnits ?? null;
+    ? getDoseUnitsForVial(chosenVial, effectiveDose, effectiveDoseUnit)
+    : adHocResult.valid ? adHocResult.syringeUnits : result?.syringeUnits ?? null;
 
   const overlapCount = protocols.filter((protocol) => {
     const protocolCompound = getCompoundById(protocol.compoundId);
@@ -105,7 +118,8 @@ export default function TodayPanel({ onOpenInventory, onOpenInsights }: TodayPan
   const warnings = [
     loggedToday ? "Already logged today" : null,
     typicalDose !== null && targetDoseValue > typicalDose * 1.3 ? "Above your recent typical dose" : null,
-    !chosenVial ? "No saved vial selected, using ad hoc calculation" : null,
+    vialSelection.mode === "mixed_concentrations" && !chosenVial ? "Choose the vial so the draw amount is correct" : null,
+    vialSelection.mode === "no_vial" ? "No saved vial selected, using ad hoc calculation" : null,
     chosenVial && chosenVial.estimatedRemainingUnits < 10 ? "Vial appears low" : null,
     chosenVial && chosenVial.status === "expired" ? "Vial is more than 30 days old" : null,
     overlapCount > 1 ? `Multiple ${compound?.functionLabel.toLowerCase() ?? "similar"} compounds active` : null,
@@ -118,40 +132,58 @@ export default function TodayPanel({ onOpenInventory, onOpenInsights }: TodayPan
   const upcoming = protocols
     .filter((protocol) => protocol.active && protocol.id !== nextDoseCard.protocol?.id)
     .map((protocol) => {
-      const lastDose = entries.find((entry) => entry.compoundId === protocol.compoundId);
-      const nextDoseAt = lastDose
-        ? getNextDoseTime(new Date(lastDose.timestamp), protocol.frequency, protocol.customIntervalHours)
+      const progress = getProtocolProgress(protocol, entries);
+      const nextDoseAt = progress.lastEntry
+        ? getNextDoseTime(new Date(progress.lastEntry.timestamp), progress.activeStep.frequency, progress.activeStep.customIntervalHours)
         : new Date(protocol.startDate);
-      return { protocol, nextDoseAt };
+      return { protocol, nextDoseAt, progress };
     })
     .sort((a, b) => a.nextDoseAt.getTime() - b.nextDoseAt.getTime())
     .slice(0, 3);
 
   const recentNotes = entries.filter((entry) => entry.symptomNote || (entry.symptomTags?.length ?? 0) > 0).slice(0, 3);
 
+  useEffect(() => {
+    setActualDose(targetDoseValue);
+    setActualDoseUnit(targetDoseValueUnit);
+    setActualTimestamp(new Date().toISOString().slice(0, 16));
+  }, [heroCompoundId, targetDoseValue, targetDoseValueUnit]);
+
+  useEffect(() => {
+    if (vialSelection.mode === "mixed_concentrations") {
+      if (!activeVials.some((vial) => vial.id === selectedVialId)) {
+        setSelectedVialId(null);
+      }
+      return;
+    }
+    setSelectedVialId(vialSelection.defaultVial?.id ?? null);
+  }, [activeVials, selectedVialId, vialSelection.defaultVial?.id, vialSelection.mode]);
+
   const handleLogNow = () => {
-    if (activeVials.length > 1 && !selectedVialId) {
-      setSelectedVialId(activeVials[0]?.id ?? null);
+    if (vialSelection.mode === "mixed_concentrations" && !selectedVialId) {
+      return;
     }
     setShowConfirm(true);
   };
 
   const confirmLog = () => {
     const fallbackConcentrationMcgPerUnit = chosenVial?.concentrationMcgPerUnit ?? result?.concentrationMcgPerUnit ?? 0;
-    const fallbackConcentrationMgPerMl = chosenVial?.concentrationMgPerMl ?? result?.concentrationMgPerMl ?? 0;
+    const fallbackConcentrationMgPerMl = chosenVial?.concentrationMgPerMl ?? adHocResult.concentrationMgPerMl ?? result?.concentrationMgPerMl ?? 0;
     const units = chosenVial
-      ? getDoseUnitsForVial(chosenVial, nextDoseCard.protocol, targetDose, targetDoseUnit)
-      : result?.syringeUnits ?? 0;
+      ? getDoseUnitsForVial(chosenVial, actualDose, actualDoseUnit)
+      : adHocResult.valid ? adHocResult.syringeUnits : result?.syringeUnits ?? 0;
 
     logDose({
       compound: compound?.name ?? "Custom",
       compoundId: heroCompoundId,
+      protocolId: nextDoseCard.protocol?.id,
       inventoryVialId: chosenVial?.id,
-      dose: targetDoseValue,
-      doseUnit: targetDoseValueUnit,
+      dose: actualDose,
+      doseUnit: actualDoseUnit,
       units,
-      concentrationMcgPerUnit: fallbackConcentrationMcgPerUnit,
+      concentrationMcgPerUnit: chosenVial?.concentrationMcgPerUnit ?? adHocResult.concentrationMcgPerUnit ?? fallbackConcentrationMcgPerUnit,
       concentrationMgPerMl: fallbackConcentrationMgPerMl,
+      timestamp: actualTimestamp ? new Date(actualTimestamp).toISOString() : new Date().toISOString(),
       symptomNote: undefined,
       symptomTags: undefined,
     });
@@ -200,16 +232,102 @@ export default function TodayPanel({ onOpenInventory, onOpenInsights }: TodayPan
               </div>
               <div className="pb-2 text-lg text-muted-foreground/60">units</div>
             </div>
+            <div className="mt-4 max-w-xs">
+              <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/55">Dose</div>
+              <div className="mt-2 flex overflow-hidden rounded-2xl border border-white/8 bg-[#090b0c]">
+                <input
+                  value={actualDose || ""}
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  onChange={(event) => setActualDose(parseFloat(event.target.value) || 0)}
+                  className="min-w-0 flex-1 bg-transparent px-4 py-3 text-lg font-semibold text-foreground focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setActualDoseUnit((unit) => (unit === "mcg" ? "mg" : "mcg"))}
+                  className="border-l border-white/8 px-4 py-3 text-sm text-cyan/85 transition hover:bg-cyan/8"
+                >
+                  {actualDoseUnit}
+                </button>
+              </div>
+            </div>
+            <div className="mt-4 max-w-xs">
+              <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/55">Time</div>
+              <input
+                value={actualTimestamp}
+                type="datetime-local"
+                onChange={(event) => setActualTimestamp(event.target.value)}
+                className="mt-2 w-full rounded-2xl border border-white/8 bg-[#090b0c] px-4 py-3 text-sm text-foreground focus:border-cyan/24 focus:outline-none"
+              />
+            </div>
+            <div className="mt-4 max-w-md">
+              <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/55">Vial</div>
+              {vialSelection.mode === "single_vial" && chosenVial && (
+                <div className="mt-2 rounded-2xl border border-white/8 bg-[#090b0c] px-4 py-3 text-sm text-foreground">
+                  {chosenVial.label} · {formatConcentration(chosenVial.concentrationMcgPerUnit)} mcg/u
+                </div>
+              )}
+              {vialSelection.mode === "same_concentration_group" && (
+                <div className="mt-2 space-y-2">
+                  <div className="rounded-2xl border border-cyan/14 bg-cyan/[0.04] px-4 py-3 text-sm text-cyan/82">
+                    Any active vial works here because the concentration is the same.
+                  </div>
+                  <select
+                    value={selectedVialId ?? ""}
+                    onChange={(event) => setSelectedVialId(event.target.value)}
+                    className="w-full rounded-2xl border border-white/8 bg-[#090b0c] px-4 py-3 text-sm text-foreground focus:border-cyan/24 focus:outline-none"
+                  >
+                    {activeVials.map((vial) => (
+                      <option key={vial.id} value={vial.id}>
+                        {vial.label} · {formatConcentration(vial.concentrationMcgPerUnit)} mcg/u
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {vialSelection.mode === "mixed_concentrations" && (
+                <div className="mt-2 space-y-2">
+                  <div className="rounded-2xl border border-amber-400/18 bg-amber-400/[0.06] px-4 py-3 text-sm text-amber-100/88">
+                    Choose the vial so the draw amount is correct.
+                  </div>
+                  <select
+                    value={selectedVialId ?? ""}
+                    onChange={(event) => setSelectedVialId(event.target.value || null)}
+                    className="w-full rounded-2xl border border-white/8 bg-[#090b0c] px-4 py-3 text-sm text-foreground focus:border-cyan/24 focus:outline-none"
+                  >
+                    <option value="">Select a vial</option>
+                    {activeVials.map((vial) => (
+                      <option key={vial.id} value={vial.id}>
+                        {vial.label} · {formatConcentration(vial.concentrationMcgPerUnit)} mcg/u
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {vialSelection.mode === "no_vial" && (
+                <div className="mt-2 rounded-2xl border border-white/8 bg-[#090b0c] px-4 py-3 text-sm text-muted-foreground/72">
+                  No saved vial selected. Logging will use the ad hoc mix.
+                </div>
+              )}
+            </div>
             <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground/72">
               <ShieldCheck className="h-4 w-4 text-cyan/70" />
-              {chosenVial
-                ? `Using saved ${chosenVial.label}: ${targetDoseValue}${targetDoseValueUnit} matches ${formatConcentration(chosenVial.concentrationMcgPerUnit)} mcg/u`
+              {vialSelection.mode === "same_concentration_group" && chosenVial
+                ? `Using shared concentration from ${activeVials.length} active vials at ${formatConcentration(chosenVial.concentrationMcgPerUnit)} mcg/u`
+                : chosenVial
+                ? `Using saved ${chosenVial.label}: ${effectiveDose}${effectiveDoseUnit} matches ${formatConcentration(chosenVial.concentrationMcgPerUnit)} mcg/u`
                 : "Save a vial in Inventory for exact logging confidence"}
             </div>
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <div className="mt-5">
+              <SyringeDisplay units={exactUnits} />
+            </div>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
               <button
                 onClick={handleLogNow}
+                disabled={vialSelection.mode === "mixed_concentrations" && !selectedVialId}
                 className="rounded-2xl bg-cyan px-4 py-3 text-sm font-semibold text-black transition hover:bg-cyan/90"
                 style={{ boxShadow: "0 0 16px rgba(0,242,255,0.18)" }}
               >
@@ -220,12 +338,6 @@ export default function TodayPanel({ onOpenInventory, onOpenInsights }: TodayPan
                 className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-foreground/86 transition hover:border-cyan/20 hover:text-cyan"
               >
                 View Vial
-              </button>
-              <button
-                onClick={onOpenInventory}
-                className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-foreground/86 transition hover:border-cyan/20 hover:text-cyan"
-              >
-                Adjust Dose
               </button>
             </div>
           </div>
@@ -272,7 +384,7 @@ export default function TodayPanel({ onOpenInventory, onOpenInsights }: TodayPan
                   No additional active protocols scheduled right now.
                 </div>
               ) : (
-                upcoming.map(({ protocol, nextDoseAt }) => {
+                upcoming.map(({ protocol, nextDoseAt, progress }) => {
                   const upcomingCompound = getCompoundById(protocol.compoundId);
                   const upcomingColor = compoundColor(protocol.compoundId);
                   return (
@@ -281,7 +393,7 @@ export default function TodayPanel({ onOpenInventory, onOpenInsights }: TodayPan
                         <div className="h-10 w-2 rounded-full" style={{ background: upcomingColor.dot }} />
                         <div>
                           <div className="text-base font-medium text-foreground">{protocol.compound}</div>
-                          <div className="text-sm text-muted-foreground/65">{upcomingCompound?.functionLabel} · {protocol.dose}{protocol.doseUnit}</div>
+                          <div className="text-sm text-muted-foreground/65">{upcomingCompound?.functionLabel} · {progress.activeStep.dose}{progress.activeStep.doseUnit}</div>
                         </div>
                       </div>
                       <div className="text-right text-sm text-muted-foreground/72">{formatRelativeTime(nextDoseAt)}</div>
@@ -362,12 +474,12 @@ export default function TodayPanel({ onOpenInventory, onOpenInsights }: TodayPan
 
       {showConfirm && (
         <div className="fixed inset-x-0 bottom-0 z-50 border-t border-cyan/14 bg-[#07090a]/96 px-4 pb-6 pt-4 backdrop-blur-2xl">
-          <div className="mx-auto max-w-3xl space-y-4 rounded-[28px] border border-white/8 bg-card/92 p-5 shadow-2xl">
+          <div className="mx-auto max-w-2xl space-y-4 rounded-[28px] border border-white/8 bg-card/92 p-5 shadow-2xl">
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground/55">Confirm dose</div>
                 <div className="mt-1 text-xl font-semibold text-foreground">
-                  {compound?.name ?? "Dose"} · {targetDoseValue}{targetDoseValueUnit}
+                  {compound?.name ?? "Dose"} · {actualDose}{actualDoseUnit}
                 </div>
               </div>
               <button onClick={() => setShowConfirm(false)} className="text-sm text-muted-foreground/55 transition hover:text-foreground">
@@ -375,52 +487,39 @@ export default function TodayPanel({ onOpenInventory, onOpenInsights }: TodayPan
               </button>
             </div>
 
-            {activeVials.length > 1 && (
-              <div className="space-y-2">
-                <div className="text-sm text-muted-foreground/72">Choose the vial you’re drawing from</div>
-                <div className="grid gap-2">
-                  {activeVials.map((vial) => (
-                    <button
-                      key={vial.id}
-                      onClick={() => setSelectedVialId(vial.id)}
-                      className={cn(
-                        "flex items-center justify-between rounded-2xl border px-4 py-3 text-left transition",
-                        selectedVialId === vial.id
-                          ? "border-cyan/30 bg-cyan/8 text-cyan"
-                          : "border-white/8 bg-black/20 text-foreground/84"
-                      )}
-                    >
-                      <div>
-                        <div className="font-medium">{vial.label}</div>
-                        <div className="text-sm text-muted-foreground/65">{formatConcentration(vial.concentrationMcgPerUnit)} mcg/u</div>
-                      </div>
-                      <div className="text-sm text-muted-foreground/65">{formatUnits(vial.estimatedRemainingUnits)}u left</div>
-                    </button>
-                  ))}
-                </div>
+            {nextDoseCard.protocol && protocolProgress && (
+              <div className="rounded-2xl border border-cyan/14 bg-cyan/6 px-4 py-3 text-sm text-cyan/82">
+                Step {protocolProgress.activeStepIndex + 1} of {protocolProgress.totalSteps}
+                {protocolProgress.activeStep.plannedDoseCount !== null
+                  ? ` · ${protocolProgress.dosesIntoStep} of ${protocolProgress.activeStep.plannedDoseCount} doses logged in this step`
+                  : " · ongoing maintenance step"}
               </div>
             )}
 
-            <div className="grid gap-3 md:grid-cols-3">
-              <div className="rounded-2xl border border-white/8 bg-black/20 px-4 py-3">
-                <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/55">Vial</div>
-                <div className="mt-2 text-base text-foreground">{chosenVial?.label ?? "Ad hoc"}</div>
-              </div>
-              <div className="rounded-2xl border border-white/8 bg-black/20 px-4 py-3">
-                <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/55">Concentration</div>
-                <div className="mt-2 text-base text-foreground">
-                  {chosenVial ? `${formatConcentration(chosenVial.concentrationMcgPerUnit)} mcg/u` : "Not saved"}
+            <div className="rounded-2xl border border-white/8 bg-black/20 px-4 py-4">
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div>
+                  <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/55">Dose</div>
+                  <div className="mt-1 text-lg font-semibold text-foreground">{actualDose}{actualDoseUnit}</div>
                 </div>
-              </div>
-              <div className="rounded-2xl border border-white/8 bg-black/20 px-4 py-3">
-                <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/55">Draw</div>
-                <div className="mt-2 text-base text-foreground">{exactUnits !== null ? `${formatUnits(exactUnits)} units` : "—"}</div>
+                <div>
+                  <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/55">Draw</div>
+                  <div className="mt-1 text-lg font-semibold text-foreground">
+                    {exactUnits !== null ? `${formatUnits(exactUnits)} units` : "—"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/55">Vial</div>
+                  <div className="mt-1 text-sm text-foreground">{chosenVial?.label ?? "Ad hoc mix"}</div>
+                </div>
               </div>
             </div>
 
             <div className="flex items-center gap-2 text-sm text-cyan/82">
               <CheckCircle2 className="h-4 w-4" />
-              {chosenVial ? "Matches your saved concentration" : "Logging without a saved vial"}
+              {chosenVial
+                ? `Matches ${formatConcentration(chosenVial.concentrationMcgPerUnit)} mcg/u`
+                : "Logging without a saved vial"}
             </div>
 
             <div className="flex gap-3">

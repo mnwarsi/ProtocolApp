@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { useProtocolStore, type ActiveProtocol } from "@/store/protocolStore";
-import { COMPOUNDS, FREQUENCY_OPTIONS, getCompoundById } from "@/data/compounds";
+import { useProtocolStore, type ActiveProtocol, type ProtocolStep, getProtocolProgress } from "@/store/protocolStore";
+import { COMPOUNDS, FREQUENCY_OPTIONS, getCompoundById, type DoseUnit, type FrequencyKey } from "@/data/compounds";
 import UpgradePrompt from "@/components/UpgradePrompt";
 import {
   estimateWashoutDate,
@@ -29,24 +29,344 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+const inputClass =
+  "w-full rounded-md border border-[#222] bg-[#111] px-3 py-2 text-sm font-mono text-foreground placeholder-muted-foreground/30 transition-colors focus:border-cyan/50 focus:outline-none focus:ring-1 focus:ring-cyan/20";
+
+function createStepDraft(compoundId: string, overrides?: Partial<ProtocolStep>): ProtocolStep {
+  const compound = getCompoundById(compoundId) ?? COMPOUNDS[0];
+  return {
+    id: overrides?.id ?? crypto.randomUUID(),
+    dose: overrides?.dose ?? compound.defaultDose,
+    doseUnit: overrides?.doseUnit ?? compound.defaultDoseUnit,
+    frequency: overrides?.frequency ?? compound.commonFrequencies[0],
+    customIntervalHours: overrides?.customIntervalHours,
+    plannedDoseCount: overrides?.plannedDoseCount ?? null,
+  };
+}
+
+function formatStepFrequency(step: ProtocolStep): string {
+  const label = FREQUENCY_OPTIONS.find((option) => option.key === step.frequency)?.label ?? step.frequency;
+  return step.frequency === "custom" && step.customIntervalHours
+    ? `${label} (${step.customIntervalHours}h)`
+    : label;
+}
+
+function ProtocolEditor({
+  protocol,
+  onCancel,
+  onSave,
+}: {
+  protocol?: ActiveProtocol;
+  onCancel: () => void;
+  onSave: (payload: Omit<ActiveProtocol, "id">) => void;
+}) {
+  const initialCompound = getCompoundById(protocol?.compoundId ?? COMPOUNDS[0].id) ?? COMPOUNDS[0];
+  const [compoundId, setCompoundId] = useState(protocol?.compoundId ?? initialCompound.id);
+  const [vialAmount, setVialAmount] = useState(protocol?.vialAmount ?? initialCompound.defaultVialSizeMg);
+  const [waterAmount, setWaterAmount] = useState(protocol?.waterAmount ?? initialCompound.defaultWaterVolumeMl);
+  const [notes, setNotes] = useState(protocol?.notes ?? "");
+  const [steps, setSteps] = useState<ProtocolStep[]>(
+    protocol?.steps?.length ? protocol.steps : [createStepDraft(initialCompound.id)]
+  );
+
+  const handleCompoundChange = (id: string) => {
+    const compound = getCompoundById(id) ?? COMPOUNDS[0];
+    setCompoundId(id);
+    setVialAmount(compound.defaultVialSizeMg);
+    setWaterAmount(compound.defaultWaterVolumeMl);
+    setSteps([createStepDraft(id)]);
+  };
+
+  const updateStep = (stepId: string, updates: Partial<ProtocolStep>) => {
+    setSteps((current) =>
+      current.map((step) => (step.id === stepId ? { ...step, ...updates } : step))
+    );
+  };
+
+  const addStep = () => {
+    const lastStep = steps[steps.length - 1] ?? createStepDraft(compoundId);
+    if (lastStep.plannedDoseCount === null) {
+      updateStep(lastStep.id, { plannedDoseCount: 4 });
+    }
+    setSteps((current) => [
+      ...current.map((step, index) =>
+        index === current.length - 1 && step.plannedDoseCount === null
+          ? { ...step, plannedDoseCount: 4 }
+          : step
+      ),
+      createStepDraft(compoundId, {
+        dose: lastStep.dose,
+        doseUnit: lastStep.doseUnit,
+        frequency: lastStep.frequency,
+        customIntervalHours: lastStep.customIntervalHours,
+        plannedDoseCount: null,
+      }),
+    ]);
+  };
+
+  const removeStep = (stepId: string) => {
+    setSteps((current) => {
+      if (current.length <= 1) {
+        return current;
+      }
+      const next = current.filter((step) => step.id !== stepId);
+      const last = next[next.length - 1];
+      if (last && last.plannedDoseCount !== null && next.length === 1) {
+        next[next.length - 1] = { ...last, plannedDoseCount: null };
+      }
+      return next;
+    });
+  };
+
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    const compound = getCompoundById(compoundId) ?? COMPOUNDS[0];
+    const normalizedSteps = steps.map((step, index) => ({
+      ...step,
+      plannedDoseCount:
+        index === steps.length - 1 && step.plannedDoseCount === null
+          ? null
+          : Math.max(1, step.plannedDoseCount ?? 1),
+      customIntervalHours:
+        step.frequency === "custom" ? Math.max(1, step.customIntervalHours ?? 24) : undefined,
+    }));
+
+    onSave({
+      compoundId,
+      compound: compound.name,
+      dose: normalizedSteps[0].dose,
+      doseUnit: normalizedSteps[0].doseUnit,
+      frequency: normalizedSteps[0].frequency,
+      customIntervalHours: normalizedSteps[0].customIntervalHours,
+      steps: normalizedSteps,
+      startDate: protocol?.startDate ?? new Date().toISOString(),
+      endDate: protocol?.endDate,
+      vialAmount,
+      waterAmount,
+      notes: notes.trim() || undefined,
+      active: protocol?.active ?? true,
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4 rounded-xl border border-[#1e1e1e] bg-[#0c0c0c] p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">
+          {protocol ? "Edit protocol" : "New protocol"}
+        </div>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="text-[10px] uppercase tracking-widest text-muted-foreground/40 transition-colors hover:text-muted-foreground/70"
+        >
+          Close
+        </button>
+      </div>
+
+      <div className="space-y-1.5">
+        <label className="text-[10px] uppercase tracking-wider text-muted-foreground/50">Compound</label>
+        <div className="relative">
+          <select
+            value={compoundId}
+            onChange={(event) => handleCompoundChange(event.target.value)}
+            className={cn(inputClass, "appearance-none pr-8")}
+          >
+            {COMPOUNDS.map((compound) => (
+              <option key={compound.id} value={compound.id}>
+                {compound.shortName} — {compound.name}
+              </option>
+            ))}
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/40" />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <label className="space-y-1.5">
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50">Vial (mg)</span>
+          <input
+            type="number"
+            min="0"
+            step="0.1"
+            value={vialAmount}
+            onChange={(event) => setVialAmount(parseFloat(event.target.value) || 0)}
+            className={inputClass}
+          />
+        </label>
+        <label className="space-y-1.5">
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50">Water (mL)</span>
+          <input
+            type="number"
+            min="0"
+            step="0.1"
+            value={waterAmount}
+            onChange={(event) => setWaterAmount(parseFloat(event.target.value) || 0)}
+            className={inputClass}
+          />
+        </label>
+      </div>
+
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground/50">Dose steps</div>
+            <div className="mt-1 text-[11px] text-muted-foreground/40">Keep a simple ramp. The last step can stay ongoing.</div>
+          </div>
+          <button
+            type="button"
+            onClick={addStep}
+            className="rounded-md border border-cyan/20 px-2.5 py-1.5 text-[10px] uppercase tracking-widest text-cyan/70 transition-colors hover:border-cyan/40 hover:text-cyan"
+          >
+            Add step
+          </button>
+        </div>
+
+        {steps.map((step, index) => {
+          const isFinalStep = index === steps.length - 1;
+          const isOngoing = step.plannedDoseCount === null;
+          return (
+            <div key={step.id} className="space-y-3 rounded-xl border border-white/8 bg-black/20 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/50">
+                  Step {index + 1}
+                </div>
+                {steps.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removeStep(step.id)}
+                    className="text-[10px] uppercase tracking-widest text-muted-foreground/40 transition-colors hover:text-destructive"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <label className="space-y-1.5">
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50">Dose</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={step.dose}
+                    onChange={(event) => updateStep(step.id, { dose: parseFloat(event.target.value) || 0 })}
+                    className={inputClass}
+                  />
+                </label>
+                <label className="space-y-1.5">
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50">Unit</span>
+                  <select
+                    value={step.doseUnit}
+                    onChange={(event) => updateStep(step.id, { doseUnit: event.target.value as DoseUnit })}
+                    className={inputClass}
+                  >
+                    <option value="mcg">mcg</option>
+                    <option value="mg">mg</option>
+                  </select>
+                </label>
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,160px)]">
+                <label className="space-y-1.5">
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50">Frequency</span>
+                  <select
+                    value={step.frequency}
+                    onChange={(event) => updateStep(step.id, { frequency: event.target.value as FrequencyKey })}
+                    className={inputClass}
+                  >
+                    {FREQUENCY_OPTIONS.map((option) => (
+                      <option key={option.key} value={option.key}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-1.5">
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50">
+                    {step.frequency === "custom" ? "Interval (h)" : "Planned doses"}
+                  </span>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={step.frequency === "custom" ? step.customIntervalHours ?? 24 : isOngoing ? "" : step.plannedDoseCount ?? ""}
+                    onChange={(event) => {
+                      const value = parseInt(event.target.value, 10) || 1;
+                      if (step.frequency === "custom") {
+                        updateStep(step.id, { customIntervalHours: value });
+                        return;
+                      }
+                      updateStep(step.id, { plannedDoseCount: value });
+                    }}
+                    disabled={step.frequency !== "custom" && isFinalStep && isOngoing}
+                    className={cn(inputClass, step.frequency !== "custom" && isFinalStep && isOngoing && "opacity-50")}
+                  />
+                </label>
+              </div>
+
+              {isFinalStep && (
+                <label className="flex items-center gap-2 text-[11px] text-muted-foreground/58">
+                  <input
+                    type="checkbox"
+                    checked={isOngoing}
+                    onChange={(event) => updateStep(step.id, { plannedDoseCount: event.target.checked ? null : 4 })}
+                    className="h-3.5 w-3.5 rounded border-white/10 bg-[#111]"
+                  />
+                  Keep this final step ongoing
+                </label>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <label className="space-y-1.5">
+        <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50">Notes (optional)</span>
+        <input
+          type="text"
+          value={notes}
+          onChange={(event) => setNotes(event.target.value)}
+          placeholder="Cycle notes, escalation reminders…"
+          className={inputClass}
+        />
+      </label>
+
+      <div className="flex gap-2 pt-1">
+        <button
+          type="submit"
+          className="flex-1 rounded-md bg-cyan py-2 text-xs font-bold uppercase tracking-widest text-black transition-all hover:bg-cyan/90"
+          style={{ boxShadow: "0 0 12px rgba(0,242,255,0.15)" }}
+        >
+          {protocol ? "Save protocol" : "Add protocol"}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-md border border-[#222] px-4 py-2 text-xs text-muted-foreground/60 transition-colors hover:border-[#333] hover:text-muted-foreground"
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
 // ─── Protocol Card ────────────────────────────────────────────────────────────
 
 function ProtocolCard({ protocol }: { protocol: ActiveProtocol }) {
-  const { entries, removeProtocol, toggleProtocol } = useProtocolStore();
+  const { entries, removeProtocol, toggleProtocol, updateProtocol } = useProtocolStore();
+  const [isEditing, setIsEditing] = useState(false);
 
   const compound = getCompoundById(protocol.compoundId);
-
-  // All log entries for this compound, newest first
-  const compoundEntries = entries
-    .filter((e) => e.compoundId === protocol.compoundId)
-    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  const progress = getProtocolProgress(protocol, entries);
+  const activeStep = progress.activeStep;
+  const compoundEntries = progress.protocolEntries;
 
   const lastDose = compoundEntries[0];
   const lastDoseDate = lastDose ? new Date(lastDose.timestamp) : null;
 
-  // ── Next dose (pass customIntervalHours through)
   const nextDose = lastDoseDate
-    ? getNextDoseTime(lastDoseDate, protocol.frequency, protocol.customIntervalHours)
+    ? getNextDoseTime(lastDoseDate, activeStep.frequency, activeStep.customIntervalHours)
     : null;
   const overdue = nextDose && nextDose <= new Date();
   const overdueMs = overdue && nextDose ? Date.now() - nextDose.getTime() : 0;
@@ -66,12 +386,12 @@ function ProtocolCard({ protocol }: { protocol: ActiveProtocol }) {
   const shotsPerVial = compound
     ? Math.floor(
         (protocol.vialAmount * 1000) /
-          (protocol.doseUnit === "mg" ? protocol.dose * 1000 : protocol.dose)
+          (activeStep.doseUnit === "mg" ? activeStep.dose * 1000 : activeStep.dose)
       )
     : null;
   const dosesLogged = compoundEntries.length;
   const shotsRemaining = shotsPerVial !== null ? Math.max(0, shotsPerVial - dosesLogged) : null;
-  const intervalHours = resolveIntervalHours(protocol.frequency, protocol.customIntervalHours);
+  const intervalHours = resolveIntervalHours(activeStep.frequency, activeStep.customIntervalHours);
   const dosesPerDay = 24 / intervalHours;
   const daysRemaining = shotsRemaining !== null && dosesPerDay > 0
     ? Math.floor(shotsRemaining / dosesPerDay)
@@ -80,6 +400,19 @@ function ProtocolCard({ protocol }: { protocol: ActiveProtocol }) {
     ? new Date(Date.now() + daysRemaining * 86400_000)
     : null;
   const isLowStock = shotsRemaining !== null && shotsRemaining > 0 && shotsRemaining <= 3;
+
+  if (isEditing) {
+    return (
+      <ProtocolEditor
+        protocol={protocol}
+        onCancel={() => setIsEditing(false)}
+        onSave={(payload) => {
+          updateProtocol(protocol.id, payload);
+          setIsEditing(false);
+        }}
+      />
+    );
+  }
 
   return (
     <div
@@ -98,14 +431,17 @@ function ProtocolCard({ protocol }: { protocol: ActiveProtocol }) {
             {protocol.compound}
           </div>
           <div className="text-[10px] text-muted-foreground/60 font-mono mt-0.5">
-            {protocol.dose}{protocol.doseUnit} ·{" "}
-            {FREQUENCY_OPTIONS.find((f) => f.key === protocol.frequency)?.label ?? protocol.frequency}
-            {protocol.frequency === "custom" && protocol.customIntervalHours
-              ? ` (${protocol.customIntervalHours}h)`
-              : ""}
+            {activeStep.dose}{activeStep.doseUnit} · {formatStepFrequency(activeStep)}
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => setIsEditing(true)}
+            className="text-muted-foreground/40 hover:text-cyan transition-colors"
+            title="Edit protocol"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
           <button
             onClick={() => toggleProtocol(protocol.id)}
             className="text-muted-foreground/50 hover:text-cyan transition-colors"
@@ -132,6 +468,12 @@ function ProtocolCard({ protocol }: { protocol: ActiveProtocol }) {
 
       {protocol.active && (
         <div className="space-y-2 text-[10px]">
+          <div className="rounded-lg border border-cyan/12 bg-cyan/6 px-3 py-2 text-[10px] text-cyan/78">
+            Step {progress.activeStepIndex + 1} of {progress.totalSteps}
+            {activeStep.plannedDoseCount !== null
+              ? ` · ${progress.dosesIntoStep} of ${activeStep.plannedDoseCount} doses logged in this step`
+              : " · ongoing"}
+          </div>
           {/* ── Next dose + last logged row ── */}
           <div className="grid grid-cols-2 gap-2">
             <div className="bg-black/20 rounded-lg p-2">
@@ -261,183 +603,14 @@ function ProtocolCard({ protocol }: { protocol: ActiveProtocol }) {
 function AddProtocolForm({ onClose }: { onClose: () => void }) {
   const { addProtocol } = useProtocolStore();
 
-  const [compoundId, setCompoundId] = useState(COMPOUNDS[0].id);
-  const [dose, setDose] = useState(COMPOUNDS[0].defaultDose);
-  const [doseUnit, setDoseUnit] = useState(COMPOUNDS[0].defaultDoseUnit);
-  const [frequency, setFrequency] = useState<string>(COMPOUNDS[0].commonFrequencies[0]);
-  const [customIntervalHours, setCustomIntervalHours] = useState(24);
-  const [vialAmount, setVialAmount] = useState(COMPOUNDS[0].defaultVialSizeMg);
-  const [waterAmount, setWaterAmount] = useState(COMPOUNDS[0].defaultWaterVolumeMl);
-  const [notes, setNotes] = useState("");
-
-  const handleCompoundChange = (id: string) => {
-    const c = getCompoundById(id);
-    if (c) {
-      setCompoundId(id);
-      setDose(c.defaultDose);
-      setDoseUnit(c.defaultDoseUnit);
-      setFrequency(c.commonFrequencies[0]);
-      setVialAmount(c.defaultVialSizeMg);
-      setWaterAmount(c.defaultWaterVolumeMl);
-    }
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const compound = getCompoundById(compoundId)!;
-    addProtocol({
-      compoundId,
-      compound: compound.name,
-      dose,
-      doseUnit: doseUnit as "mcg" | "mg",
-      frequency: frequency as ActiveProtocol["frequency"],
-      customIntervalHours: frequency === "custom" ? customIntervalHours : undefined,
-      startDate: new Date().toISOString(),
-      vialAmount,
-      waterAmount,
-      notes: notes || undefined,
-      active: true,
-    });
-    onClose();
-  };
-
-  const inputClass =
-    "w-full bg-[#111] border border-[#222] rounded-md px-3 py-2 text-sm font-mono text-foreground placeholder-muted-foreground/30 focus:outline-none focus:border-cyan/50 focus:ring-1 focus:ring-cyan/20 transition-colors";
-
   return (
-    <form onSubmit={handleSubmit} className="space-y-3 border border-[#1e1e1e] rounded-xl p-4 bg-[#0c0c0c]">
-      <div className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-widest mb-2">
-        New Protocol
-      </div>
-
-      <div className="space-y-1.5">
-        <label className="text-[10px] text-muted-foreground/50 uppercase tracking-wider">Compound</label>
-        <div className="relative">
-          <select
-            value={compoundId}
-            onChange={(e) => handleCompoundChange(e.target.value)}
-            className={cn(inputClass, "appearance-none pr-8")}
-          >
-            {COMPOUNDS.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.shortName} — {c.name}
-              </option>
-            ))}
-          </select>
-          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/40 pointer-events-none" />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2">
-        <div className="space-y-1.5">
-          <label className="text-[10px] text-muted-foreground/50 uppercase tracking-wider">Dose</label>
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            value={dose}
-            onChange={(e) => setDose(parseFloat(e.target.value) || 0)}
-            className={inputClass}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <label className="text-[10px] text-muted-foreground/50 uppercase tracking-wider">Unit</label>
-          <div className="relative">
-            <select
-              value={doseUnit}
-              onChange={(e) => setDoseUnit(e.target.value as "mcg" | "mg")}
-              className={cn(inputClass, "appearance-none pr-8")}
-            >
-              <option value="mcg">mcg</option>
-              <option value="mg">mg</option>
-            </select>
-            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/40 pointer-events-none" />
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-1.5">
-        <label className="text-[10px] text-muted-foreground/50 uppercase tracking-wider">Frequency</label>
-        <div className="relative">
-          <select
-            value={frequency}
-            onChange={(e) => setFrequency(e.target.value)}
-            className={cn(inputClass, "appearance-none pr-8")}
-          >
-            {FREQUENCY_OPTIONS.map((f) => (
-              <option key={f.key} value={f.key}>{f.label}</option>
-            ))}
-          </select>
-          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/40 pointer-events-none" />
-        </div>
-      </div>
-
-      {frequency === "custom" && (
-        <div className="space-y-1.5">
-          <label className="text-[10px] text-muted-foreground/50 uppercase tracking-wider">Interval (hours)</label>
-          <input
-            type="number"
-            min="1"
-            value={customIntervalHours}
-            onChange={(e) => setCustomIntervalHours(parseInt(e.target.value) || 24)}
-            className={inputClass}
-          />
-        </div>
-      )}
-
-      <div className="grid grid-cols-2 gap-2">
-        <div className="space-y-1.5">
-          <label className="text-[10px] text-muted-foreground/50 uppercase tracking-wider">Vial (mg)</label>
-          <input
-            type="number"
-            min="0"
-            step="0.1"
-            value={vialAmount}
-            onChange={(e) => setVialAmount(parseFloat(e.target.value) || 0)}
-            className={inputClass}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <label className="text-[10px] text-muted-foreground/50 uppercase tracking-wider">Water (mL)</label>
-          <input
-            type="number"
-            min="0"
-            step="0.1"
-            value={waterAmount}
-            onChange={(e) => setWaterAmount(parseFloat(e.target.value) || 0)}
-            className={inputClass}
-          />
-        </div>
-      </div>
-
-      <div className="space-y-1.5">
-        <label className="text-[10px] text-muted-foreground/50 uppercase tracking-wider">Notes (optional)</label>
-        <input
-          type="text"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="Storage, cycle notes…"
-          className={inputClass}
-        />
-      </div>
-
-      <div className="flex gap-2 pt-1">
-        <button
-          type="submit"
-          className="flex-1 bg-cyan text-black font-bold py-2 rounded-md hover:bg-cyan/90 transition-all text-xs uppercase tracking-widest"
-          style={{ boxShadow: "0 0 12px rgba(0,242,255,0.15)" }}
-        >
-          Add Protocol
-        </button>
-        <button
-          type="button"
-          onClick={onClose}
-          className="px-4 py-2 text-xs text-muted-foreground/60 border border-[#222] rounded-md hover:border-[#333] hover:text-muted-foreground transition-colors"
-        >
-          Cancel
-        </button>
-      </div>
-    </form>
+    <ProtocolEditor
+      onCancel={onClose}
+      onSave={(payload) => {
+        addProtocol(payload);
+        onClose();
+      }}
+    />
   );
 }
 

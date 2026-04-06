@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
-import { Beaker, CheckCircle2, Droplets, PackageOpen, Plus, Sparkles } from "lucide-react";
+import { Beaker, CheckCircle2, Droplets, PackageOpen, Pencil, Trash2, X } from "lucide-react";
 import { COMPOUNDS, getCompoundById } from "@/data/compounds";
 import { compoundColor } from "@/lib/compoundColor";
+import { calculate, convertToMcg, formatFormula } from "@/lib/mathEngine";
 import { formatConcentration, formatUnits } from "@/lib/mathEngine";
 import { type InventoryVial, useProtocolStore } from "@/store/protocolStore";
-import { cn } from "@/lib/utils";
 
 function getSuggestedDilution(vialSizeMg: number): number {
   if (vialSizeMg <= 2) return 1;
@@ -18,6 +18,19 @@ function getVialBadge(vial: InventoryVial) {
   if (vial.status === "expired" || ageDays > 21) return "Old";
   if (vial.estimatedRemainingUnits < 20) return "Low";
   return "Fresh";
+}
+
+function concentrationsMatch(a: number, b: number) {
+  return Math.abs(a - b) < 0.0001;
+}
+
+interface VialEditDraft {
+  label: string;
+  vialAmountMg: number;
+  diluentMl: number;
+  defaultDose: number;
+  defaultDoseUnit: "mcg" | "mg";
+  notes: string;
 }
 
 export default function InventoryPanel() {
@@ -35,16 +48,33 @@ export default function InventoryPanel() {
     setTargetDose,
     setDoseUnit,
     addInventoryVial,
+    entries,
+    updateInventoryVial,
+    archiveInventoryVial,
   } = useProtocolStore();
 
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const [editingVialId, setEditingVialId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<VialEditDraft | null>(null);
   const selectedCompound = getCompoundById(selectedCompoundId) ?? COMPOUNDS[0];
   const sortedVials = useMemo(
-    () => [...inventoryVials].sort((a, b) => new Date(b.reconstitutedAt).getTime() - new Date(a.reconstitutedAt).getTime()),
+    () =>
+      [...inventoryVials]
+        .filter((vial) => vial.status !== "archived")
+        .sort((a, b) => new Date(b.reconstitutedAt).getTime() - new Date(a.reconstitutedAt).getTime()),
     [inventoryVials]
   );
 
   const suggestedDilution = getSuggestedDilution(vialSizeMg);
+  const activeSiblingVials = inventoryVials.filter(
+    (vial) => vial.compoundId === selectedCompoundId && vial.status !== "archived"
+  );
+  const saveConflictWarning = result?.valid
+    ? activeSiblingVials.some((vial) => !concentrationsMatch(vial.concentrationMcgPerUnit, result.concentrationMcgPerUnit))
+    : false;
+  const saveSameConcentrationInfo = result?.valid
+    ? activeSiblingVials.some((vial) => concentrationsMatch(vial.concentrationMcgPerUnit, result.concentrationMcgPerUnit))
+    : false;
 
   const saveCurrentVial = () => {
     if (!result?.valid) return;
@@ -60,6 +90,60 @@ export default function InventoryPanel() {
     });
     setSavedMessage(`Saved ${selectedCompound.shortName} vial (${vialId.slice(0, 6)})`);
     setTimeout(() => setSavedMessage(null), 2400);
+  };
+
+  const startEditing = (vial: InventoryVial) => {
+    setEditingVialId(vial.id);
+    setDraft({
+      label: vial.label,
+      vialAmountMg: vial.vialAmountMg,
+      diluentMl: vial.diluentMl,
+      defaultDose: vial.defaultDose,
+      defaultDoseUnit: vial.defaultDoseUnit,
+      notes: vial.notes ?? "",
+    });
+  };
+
+  const cancelEditing = () => {
+    setEditingVialId(null);
+    setDraft(null);
+  };
+
+  const saveVialEdit = (vial: InventoryVial) => {
+    if (!draft) return;
+    const nextResult = calculate({
+      vialSizeMg: draft.vialAmountMg,
+      waterVolumeMl: draft.diluentMl,
+      targetDose: draft.defaultDose,
+      targetDoseUnit: draft.defaultDoseUnit,
+    });
+    if (!nextResult.valid) return;
+
+    updateInventoryVial(vial.id, {
+      label: draft.label.trim() || vial.label,
+      vialAmountMg: draft.vialAmountMg,
+      diluentMl: draft.diluentMl,
+      concentrationMgPerMl: nextResult.concentrationMgPerMl,
+      concentrationMcgPerUnit: nextResult.concentrationMcgPerUnit,
+      defaultDose: draft.defaultDose,
+      defaultDoseUnit: draft.defaultDoseUnit,
+      notes: draft.notes.trim() || undefined,
+    });
+    cancelEditing();
+  };
+
+  const removeVial = (vial: InventoryVial) => {
+    const linkedLogs = entries.filter((entry) => entry.inventoryVialId === vial.id).length;
+    const prompt = linkedLogs > 0
+      ? `Remove ${vial.label} from saved inventory? ${linkedLogs} logged dose${linkedLogs === 1 ? "" : "s"} will keep their history, but this vial will disappear from Inventory.`
+      : `Remove ${vial.label} from saved inventory?`;
+    if (!window.confirm(prompt)) {
+      return;
+    }
+    archiveInventoryVial(vial.id);
+    if (editingVialId === vial.id) {
+      cancelEditing();
+    }
   };
 
   return (
@@ -189,6 +273,18 @@ export default function InventoryPanel() {
             </button>
           </div>
 
+          {saveConflictWarning && (
+            <div className="mt-4 rounded-2xl border border-amber-400/18 bg-amber-400/[0.06] px-4 py-3 text-sm text-amber-100/88">
+              You already have an active vial for this peptide at a different concentration. Logging in Today will require explicit vial selection.
+            </div>
+          )}
+
+          {!saveConflictWarning && saveSameConcentrationInfo && (
+            <div className="mt-4 rounded-2xl border border-cyan/14 bg-cyan/[0.04] px-4 py-3 text-sm text-cyan/82">
+              This matches an existing active concentration, so Today can keep logging automatic.
+            </div>
+          )}
+
           {savedMessage && (
             <div className="mt-4 flex items-center gap-2 rounded-2xl border border-cyan/14 bg-cyan/8 px-4 py-3 text-sm text-cyan/84">
               <CheckCircle2 className="h-4 w-4" />
@@ -231,6 +327,34 @@ export default function InventoryPanel() {
                 : vial.defaultDose / vial.concentrationMcgPerUnit;
               const drawsLeft = unitsPerDefaultDose > 0 ? Math.floor(vial.estimatedRemainingUnits / unitsPerDefaultDose) : 0;
               const badge = getVialBadge(vial);
+              const isEditing = editingVialId === vial.id && draft;
+              const draftResult = isEditing
+                ? calculate({
+                    vialSizeMg: draft.vialAmountMg,
+                    waterVolumeMl: draft.diluentMl,
+                    targetDose: draft.defaultDose,
+                    targetDoseUnit: draft.defaultDoseUnit,
+                  })
+                : null;
+              const editedUnits = draftResult?.valid ? draftResult.syringeUnits : unitsPerDefaultDose;
+              const editConflictWarning = draftResult?.valid
+                ? inventoryVials.some(
+                    (candidate) =>
+                      candidate.id !== vial.id &&
+                      candidate.compoundId === vial.compoundId &&
+                      candidate.status !== "archived" &&
+                      !concentrationsMatch(candidate.concentrationMcgPerUnit, draftResult.concentrationMcgPerUnit)
+                  )
+                : false;
+              const editSameConcentrationInfo = draftResult?.valid
+                ? inventoryVials.some(
+                    (candidate) =>
+                      candidate.id !== vial.id &&
+                      candidate.compoundId === vial.compoundId &&
+                      candidate.status !== "archived" &&
+                      concentrationsMatch(candidate.concentrationMcgPerUnit, draftResult.concentrationMcgPerUnit)
+                  )
+                : false;
 
               return (
                 <div key={vial.id} className="rounded-[24px] border border-white/8 bg-black/20 p-4">
@@ -244,6 +368,35 @@ export default function InventoryPanel() {
                       style={{ borderColor: color.border, background: color.bg, color: color.text }}
                     >
                       {badge}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-white/8 bg-black/20 px-4 py-3">
+                    <div className="text-sm text-muted-foreground/68">
+                      This vial stores your default draw reference. Actual taken doses are edited in Today.
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {isEditing ? (
+                        <button
+                          onClick={cancelEditing}
+                          className="rounded-full border border-white/10 bg-white/[0.03] p-2 text-muted-foreground/60 transition hover:text-foreground"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => startEditing(vial)}
+                          className="rounded-full border border-white/10 bg-white/[0.03] p-2 text-muted-foreground/60 transition hover:border-cyan/20 hover:text-cyan"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => removeVial(vial)}
+                        className="rounded-full border border-white/10 bg-white/[0.03] p-2 text-muted-foreground/50 transition hover:border-destructive/20 hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </div>
                   </div>
 
@@ -283,6 +436,128 @@ export default function InventoryPanel() {
                       <div className="mt-1 text-sm text-muted-foreground/64">{formatUnits(vial.estimatedRemainingUnits)} units left</div>
                     </div>
                   </div>
+
+                  {isEditing && (
+                    <div className="mt-4 space-y-3 rounded-[22px] border border-cyan/14 bg-cyan/[0.04] p-4">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <label className="space-y-2">
+                          <span className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/55">Label</span>
+                          <input
+                            value={draft.label}
+                            type="text"
+                            onChange={(event) => setDraft({ ...draft, label: event.target.value })}
+                            className="w-full rounded-2xl border border-white/8 bg-[#090b0c] px-4 py-3 text-sm text-foreground focus:border-cyan/24 focus:outline-none"
+                          />
+                        </label>
+                        <label className="space-y-2">
+                          <span className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/55">Default dose</span>
+                          <div className="flex overflow-hidden rounded-2xl border border-white/8 bg-[#090b0c]">
+                            <input
+                              value={draft.defaultDose || ""}
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              onChange={(event) => setDraft({ ...draft, defaultDose: parseFloat(event.target.value) || 0 })}
+                              className="min-w-0 flex-1 bg-transparent px-4 py-3 text-sm text-foreground focus:outline-none"
+                            />
+                            <button
+                              onClick={() =>
+                                setDraft({
+                                  ...draft,
+                                  defaultDoseUnit: draft.defaultDoseUnit === "mcg" ? "mg" : "mcg",
+                                })
+                              }
+                              type="button"
+                              className="border-l border-white/8 px-4 py-3 text-sm text-cyan transition hover:bg-cyan/8"
+                            >
+                              {draft.defaultDoseUnit}
+                            </button>
+                          </div>
+                        </label>
+                        <label className="space-y-2">
+                          <span className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/55">Vial amount (mg)</span>
+                          <input
+                            value={draft.vialAmountMg || ""}
+                            type="number"
+                            min="0"
+                            step="0.1"
+                            onChange={(event) => setDraft({ ...draft, vialAmountMg: parseFloat(event.target.value) || 0 })}
+                            className="w-full rounded-2xl border border-white/8 bg-[#090b0c] px-4 py-3 text-sm text-foreground focus:border-cyan/24 focus:outline-none"
+                          />
+                        </label>
+                        <label className="space-y-2">
+                          <span className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/55">Diluent (mL)</span>
+                          <input
+                            value={draft.diluentMl || ""}
+                            type="number"
+                            min="0"
+                            step="0.1"
+                            onChange={(event) => setDraft({ ...draft, diluentMl: parseFloat(event.target.value) || 0 })}
+                            className="w-full rounded-2xl border border-white/8 bg-[#090b0c] px-4 py-3 text-sm text-foreground focus:border-cyan/24 focus:outline-none"
+                          />
+                        </label>
+                      </div>
+
+                      <label className="space-y-2">
+                        <span className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/55">Notes</span>
+                        <input
+                          value={draft.notes}
+                          type="text"
+                          onChange={(event) => setDraft({ ...draft, notes: event.target.value })}
+                          className="w-full rounded-2xl border border-white/8 bg-[#090b0c] px-4 py-3 text-sm text-foreground focus:border-cyan/24 focus:outline-none"
+                        />
+                      </label>
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-2xl border border-white/8 bg-black/20 px-4 py-3">
+                          <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/55">Edited default draw</div>
+                          <div className="mt-2 text-base text-foreground">{formatUnits(editedUnits)} units</div>
+                        </div>
+                        <div className="rounded-2xl border border-white/8 bg-black/20 px-4 py-3">
+                          <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/55">Mix formula</div>
+                          <div className="mt-2 text-sm leading-6 text-muted-foreground/72">
+                            {draftResult?.valid
+                              ? formatFormula(
+                                  convertToMcg(draft.defaultDose, draft.defaultDoseUnit),
+                                  draft.vialAmountMg,
+                                  draft.diluentMl,
+                                  editedUnits
+                                )
+                              : "Enter a valid vial amount, diluent, and default dose."}
+                          </div>
+                        </div>
+                      </div>
+
+                      {editConflictWarning && (
+                        <div className="rounded-2xl border border-amber-400/18 bg-amber-400/[0.06] px-4 py-3 text-sm text-amber-100/88">
+                          This would create multiple active concentrations for the same peptide. Today will require vial selection to keep the draw correct.
+                        </div>
+                      )}
+
+                      {!editConflictWarning && editSameConcentrationInfo && (
+                        <div className="rounded-2xl border border-cyan/14 bg-cyan/[0.04] px-4 py-3 text-sm text-cyan/82">
+                          This matches your other active vial concentration, so Today can keep using either automatically.
+                        </div>
+                      )}
+
+                      <div className="flex gap-3">
+                        <button
+                          onClick={cancelEditing}
+                          type="button"
+                          className="flex-1 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-foreground/84 transition hover:border-white/16"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => saveVialEdit(vial)}
+                          type="button"
+                          className="flex-1 rounded-2xl bg-cyan px-4 py-3 text-sm font-semibold text-black transition hover:bg-cyan/90"
+                        >
+                          Save changes
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="mt-4 flex items-center justify-between rounded-2xl border border-white/8 bg-black/20 px-4 py-3 text-sm text-muted-foreground/72">
                     <span>{drawsLeft} draws left at your usual dose</span>

@@ -2,10 +2,14 @@ import { useEffect } from "react";
 import { useProtocolStore } from "@/store/protocolStore";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 
-export default function SyringeDisplay() {
+interface SyringeDisplayProps {
+  units?: number | null;
+}
+
+export default function SyringeDisplay({ units: unitsOverride = null }: SyringeDisplayProps) {
   const { result } = useProtocolStore();
 
-  const units = result?.valid ? result.syringeUnits : 0;
+  const units = unitsOverride ?? (result?.valid ? result.syringeUnits : 0);
   const fillPercentage = Math.min(Math.max(units / 100, 0), 1);
 
   const barrelX = 60;

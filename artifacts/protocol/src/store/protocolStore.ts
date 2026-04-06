@@ -31,6 +31,7 @@ export interface DoseLogEntry {
   id: string;
   compound: string;
   compoundId: string;
+  protocolId?: string;
   inventoryVialId?: string;
   dose: number;
   doseUnit: DoseUnit;
@@ -42,6 +43,15 @@ export interface DoseLogEntry {
   symptomTags?: SymptomTag[];
 }
 
+export interface ProtocolStep {
+  id: string;
+  dose: number;
+  doseUnit: DoseUnit;
+  frequency: FrequencyKey;
+  customIntervalHours?: number;
+  plannedDoseCount: number | null;
+}
+
 export interface ActiveProtocol {
   id: string;
   compoundId: string;
@@ -50,6 +60,7 @@ export interface ActiveProtocol {
   doseUnit: DoseUnit;
   frequency: FrequencyKey;
   customIntervalHours?: number;
+  steps: ProtocolStep[];
   startDate: string;
   endDate?: string;
   vialAmount: number;
@@ -91,6 +102,15 @@ export interface InventoryVial {
   estimatedRemainingUnits: number;
   status: InventoryVialStatus;
   notes?: string;
+}
+
+export type VialSelectionMode = "single_vial" | "same_concentration_group" | "mixed_concentrations" | "no_vial";
+
+export interface VialSelectionState {
+  mode: VialSelectionMode;
+  defaultVial: InventoryVial | null;
+  representativeConcentrationMcgPerUnit: number | null;
+  vials: InventoryVial[];
 }
 
 export type UnitSystem = "metric" | "imperial";
@@ -170,7 +190,7 @@ interface LockActions {
 }
 
 interface LogsActions {
-  logDose: (entry: Omit<DoseLogEntry, "id" | "timestamp">) => void;
+  logDose: (entry: Omit<DoseLogEntry, "id" | "timestamp"> & { timestamp?: string }) => void;
   deleteEntry: (id: string) => void;
   clearAll: () => void;
 }
@@ -323,6 +343,107 @@ function createInventoryLabel(compoundId: string, reconstitutedAt: string): stri
   return `${compound?.shortName ?? "Vial"} · ${shortDate}`;
 }
 
+function syncLegacyProtocolFields(protocol: ActiveProtocol): ActiveProtocol {
+  const firstStep = protocol.steps[0];
+  if (!firstStep) {
+    return protocol;
+  }
+  return {
+    ...protocol,
+    dose: firstStep.dose,
+    doseUnit: firstStep.doseUnit,
+    frequency: firstStep.frequency,
+    customIntervalHours: firstStep.customIntervalHours,
+  };
+}
+
+function createProtocolStep(partial?: Partial<ProtocolStep>): ProtocolStep {
+  return {
+    id: partial?.id ?? crypto.randomUUID(),
+    dose: partial?.dose ?? 0,
+    doseUnit: partial?.doseUnit ?? "mcg",
+    frequency: partial?.frequency ?? "daily",
+    customIntervalHours: partial?.customIntervalHours,
+    plannedDoseCount: partial?.plannedDoseCount ?? null,
+  };
+}
+
+function normalizeProtocol(raw: ActiveProtocol): ActiveProtocol {
+  const legacyStep = createProtocolStep({
+    dose: raw.dose,
+    doseUnit: raw.doseUnit,
+    frequency: raw.frequency,
+    customIntervalHours: raw.customIntervalHours,
+    plannedDoseCount: null,
+  });
+  const steps = Array.isArray(raw.steps) && raw.steps.length > 0
+    ? raw.steps.map((step) => createProtocolStep(step))
+    : [legacyStep];
+  return syncLegacyProtocolFields({
+    ...raw,
+    steps,
+  });
+}
+
+function normalizeTemplate(template: SavedTemplate): SavedTemplate {
+  return {
+    ...template,
+    protocols: template.protocols.map((protocol) => normalizeProtocol({
+      ...protocol,
+      id: "template",
+      startDate: new Date().toISOString(),
+      active: true,
+    })).map(({ id: _id, startDate: _startDate, active: _active, ...rest }) => rest),
+  };
+}
+
+export function getProtocolEntries(entries: DoseLogEntry[], protocol: ActiveProtocol): DoseLogEntry[] {
+  const protocolEntries = entries.filter((entry) => entry.protocolId === protocol.id);
+  if (protocolEntries.length > 0) {
+    return protocolEntries;
+  }
+  return entries.filter((entry) => entry.compoundId === protocol.compoundId);
+}
+
+export function getProtocolProgress(protocol: ActiveProtocol, entries: DoseLogEntry[]) {
+  const protocolEntries = getProtocolEntries(entries, protocol)
+    .slice()
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  const totalLogged = protocolEntries.length;
+  let remaining = totalLogged;
+  let activeStepIndex = Math.max(0, protocol.steps.length - 1);
+  let dosesIntoStep = 0;
+
+  for (let index = 0; index < protocol.steps.length; index += 1) {
+    const step = protocol.steps[index];
+    if (step.plannedDoseCount === null) {
+      activeStepIndex = index;
+      dosesIntoStep = remaining;
+      break;
+    }
+    if (remaining < step.plannedDoseCount) {
+      activeStepIndex = index;
+      dosesIntoStep = remaining;
+      break;
+    }
+    remaining -= step.plannedDoseCount;
+  }
+
+  const activeStep = protocol.steps[activeStepIndex] ?? protocol.steps[0];
+  const lastEntry = protocolEntries[0] ?? null;
+
+  return {
+    activeStep,
+    activeStepIndex,
+    totalSteps: protocol.steps.length,
+    dosesIntoStep,
+    totalLogged,
+    lastEntry,
+    protocolEntries,
+    isFinalStep: activeStepIndex === protocol.steps.length - 1,
+  };
+}
+
 export function getInventoryRemaining(vial: InventoryVial, entries: DoseLogEntry[]) {
   const usedMg = entries
     .filter((entry) => entry.inventoryVialId === vial.id)
@@ -383,6 +504,56 @@ export function getRecommendedVialForCompound(
   compoundId: string
 ): InventoryVial | null {
   return getActiveVialsForCompound(inventoryVials, entries, compoundId)[0] ?? null;
+}
+
+function concentrationsMatch(a: number, b: number) {
+  return Math.abs(a - b) < 0.0001;
+}
+
+export function getVialSelectionStateForCompound(
+  inventoryVials: InventoryVial[],
+  entries: DoseLogEntry[],
+  compoundId: string
+): VialSelectionState {
+  const vials = getActiveVialsForCompound(inventoryVials, entries, compoundId);
+  if (vials.length === 0) {
+    return {
+      mode: "no_vial",
+      defaultVial: null,
+      representativeConcentrationMcgPerUnit: null,
+      vials,
+    };
+  }
+
+  if (vials.length === 1) {
+    return {
+      mode: "single_vial",
+      defaultVial: vials[0],
+      representativeConcentrationMcgPerUnit: vials[0].concentrationMcgPerUnit,
+      vials,
+    };
+  }
+
+  const firstConcentration = vials[0].concentrationMcgPerUnit;
+  const sameConcentration = vials.every((vial) =>
+    concentrationsMatch(vial.concentrationMcgPerUnit, firstConcentration)
+  );
+
+  if (sameConcentration) {
+    return {
+      mode: "same_concentration_group",
+      defaultVial: vials[0],
+      representativeConcentrationMcgPerUnit: firstConcentration,
+      vials,
+    };
+  }
+
+  return {
+    mode: "mixed_concentrations",
+    defaultVial: null,
+    representativeConcentrationMcgPerUnit: null,
+    vials,
+  };
 }
 
 export function getLastLoggedForCompound(entries: DoseLogEntry[], compoundId: string): DoseLogEntry | null {
@@ -535,8 +706,8 @@ export const useProtocolStore = create<ProtocolStore>()(
               isLocked: false,
               lockError: null,
               entries: payload.entries ?? [],
-              protocols: payload.protocols ?? [],
-              templates: payload.templates ?? [],
+              protocols: (payload.protocols ?? []).map(normalizeProtocol),
+              templates: (payload.templates ?? []).map(normalizeTemplate),
               injectionSites: payload.injectionSites ?? [],
               inventoryVials: (payload.inventoryVials ?? []).map((vial) =>
                 hydrateInventoryVial(vial, payload.entries ?? [])
@@ -610,7 +781,7 @@ export const useProtocolStore = create<ProtocolStore>()(
           const newEntry: DoseLogEntry = {
             ...entry,
             id: crypto.randomUUID(),
-            timestamp: new Date().toISOString(),
+            timestamp: entry.timestamp ?? new Date().toISOString(),
           };
           set((state) => ({
             entries: [newEntry, ...state.entries].slice(0, 200),
@@ -644,7 +815,7 @@ export const useProtocolStore = create<ProtocolStore>()(
 
         // ── Protocol actions ──
         addProtocol: (p) => {
-          const newProto: ActiveProtocol = { ...p, id: crypto.randomUUID() };
+          const newProto: ActiveProtocol = normalizeProtocol({ ...p, id: crypto.randomUUID() });
           set((state) => ({ protocols: [...state.protocols, newProto] }));
           syncSensitive();
         },
@@ -652,7 +823,7 @@ export const useProtocolStore = create<ProtocolStore>()(
         updateProtocol: (id, updates) => {
           set((state) => ({
             protocols: state.protocols.map((p) =>
-              p.id === id ? { ...p, ...updates } : p
+              p.id === id ? normalizeProtocol({ ...p, ...updates }) : p
             ),
           }));
           syncSensitive();
@@ -678,7 +849,12 @@ export const useProtocolStore = create<ProtocolStore>()(
           const template: SavedTemplate = {
             id: crypto.randomUUID(),
             name,
-            protocols: protocols.map(({ id: _id, startDate: _sd, endDate: _ed, active: _a, ...rest }) => rest),
+            protocols: protocols.map(({ id: _id, startDate: _sd, endDate: _ed, active: _a, ...rest }) => normalizeProtocol({
+              ...rest,
+              id: _id,
+              startDate: _sd,
+              active: _a,
+            })).map(({ id: _id, startDate: _sd, active: _a, ...rest }) => rest),
             createdAt: new Date().toISOString(),
           };
           set((state) => ({ templates: [...state.templates, template] }));
@@ -689,10 +865,12 @@ export const useProtocolStore = create<ProtocolStore>()(
           const template = get().templates.find((t) => t.id === templateId);
           if (!template) return;
           const newProtocols: ActiveProtocol[] = template.protocols.map((p) => ({
-            ...p,
-            id: crypto.randomUUID(),
-            startDate: new Date().toISOString(),
-            active: true,
+            ...normalizeProtocol({
+              ...p,
+              id: crypto.randomUUID(),
+              startDate: new Date().toISOString(),
+              active: true,
+            }),
           }));
           set({ protocols: newProtocols });
           syncSensitive();
@@ -877,8 +1055,8 @@ export const useProtocolStore = create<ProtocolStore>()(
 
             set({
               entries: payload.entries ?? [],
-              protocols: payload.protocols ?? [],
-              templates: payload.templates ?? [],
+              protocols: (payload.protocols ?? []).map(normalizeProtocol),
+              templates: (payload.templates ?? []).map(normalizeTemplate),
               injectionSites: payload.injectionSites ?? [],
               inventoryVials: (payload.inventoryVials ?? []).map((vial) =>
                 hydrateInventoryVial(vial, payload.entries ?? [])
@@ -921,8 +1099,8 @@ const bootstrapStore = () => {
     if (payload) {
       useProtocolStore.setState({
         entries: payload.entries ?? [],
-        protocols: payload.protocols ?? [],
-        templates: payload.templates ?? [],
+        protocols: (payload.protocols ?? []).map(normalizeProtocol),
+        templates: (payload.templates ?? []).map(normalizeTemplate),
         injectionSites: payload.injectionSites ?? [],
         inventoryVials: (payload.inventoryVials ?? []).map((vial) =>
           hydrateInventoryVial(vial, payload.entries ?? [])
