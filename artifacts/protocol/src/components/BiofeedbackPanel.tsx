@@ -90,12 +90,12 @@ function CustomTooltip({
       )}
       {dosesOnDay.length > 0 && (
         <div className="mt-1 pt-1 border-t border-[#2a2a2a] space-y-0.5">
-          {dosesOnDay.map((d, i) => (
-            <div key={i} className="flex items-center gap-1.5">
-              <div
-                className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                style={{ background: compoundColor(d.compoundId) }}
-              />
+              {dosesOnDay.map((d, i) => (
+                <div key={i} className="flex items-center gap-1.5">
+                  <div
+                    className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                    style={{ background: compoundColor(d.compoundId).dot }}
+                  />
               <span className="text-muted-foreground/60 text-[9px]">{d.compound}</span>
             </div>
           ))}
@@ -294,7 +294,7 @@ export default function BiofeedbackPanel() {
                 <ReferenceLine
                   key={i}
                   x={e.date}
-                  stroke={compoundColor(e.compoundId)}
+                  stroke={compoundColor(e.compoundId).dot}
                   strokeWidth={1.5}
                   strokeDasharray="3 3"
                   strokeOpacity={0.6}
@@ -371,9 +371,9 @@ export default function BiofeedbackPanel() {
               <div
                 className="w-6 h-0.5 rounded-full"
                 style={{
-                  background: compoundColor(e.compoundId),
+                  background: compoundColor(e.compoundId).dot,
                   opacity: 0.7,
-                  backgroundImage: `repeating-linear-gradient(90deg, ${compoundColor(e.compoundId)} 0px, ${compoundColor(e.compoundId)} 3px, transparent 3px, transparent 6px)`,
+                  backgroundImage: `repeating-linear-gradient(90deg, ${compoundColor(e.compoundId).dot} 0px, ${compoundColor(e.compoundId).dot} 3px, transparent 3px, transparent 6px)`,
                 }}
               />
               <span className="text-[9px] font-mono text-muted-foreground/50">{e.compound}</span>

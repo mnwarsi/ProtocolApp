@@ -1,14 +1,13 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useProtocolStore } from "@/store/protocolStore";
-import CalculatorPanel from "@/components/CalculatorPanel";
-import SyringeDisplay from "@/components/SyringeDisplay";
-import LogPanel from "@/components/LogPanel";
-import ProtocolPanel from "@/components/ProtocolPanel";
-import BiofeedbackPanel from "@/components/BiofeedbackPanel";
 import SettingsPanel from "@/components/SettingsPanel";
 import LockScreen from "@/components/LockScreen";
-import AppShell from "@/components/AppShell";
+import AppShell, { type AppTab } from "@/components/AppShell";
 import InstallPrompt from "@/components/InstallPrompt";
+import TodayPanel from "@/components/TodayPanel";
+import LibraryPanel from "@/components/LibraryPanel";
+import InventoryPanel from "@/components/InventoryPanel";
+import InsightsPanel from "@/components/InsightsPanel";
 
 function CloudSyncOnMutation() {
   const {
@@ -16,6 +15,7 @@ function CloudSyncOnMutation() {
     protocols,
     templates,
     injectionSites,
+    inventoryVials,
     signedInUserId,
     syncToCloud,
   } = useProtocolStore();
@@ -32,13 +32,14 @@ function CloudSyncOnMutation() {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [entries, protocols, templates, injectionSites, signedInUserId]);
+  }, [entries, protocols, templates, injectionSites, inventoryVials, signedInUserId]);
 
   return null;
 }
 
 export default function ProtocolApp() {
   const { isLocked, hasPassphrase } = useProtocolStore();
+  const [activeTab, setActiveTab] = useState<AppTab>("today");
 
   if (isLocked && hasPassphrase) {
     return <LockScreen />;
@@ -49,15 +50,17 @@ export default function ProtocolApp() {
       <CloudSyncOnMutation />
       <InstallPrompt />
       <AppShell
-        calculatorSlot={
-          <>
-            <CalculatorPanel />
-            <SyringeDisplay />
-          </>
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        todaySlot={
+          <TodayPanel
+            onOpenInventory={() => setActiveTab("inventory")}
+            onOpenInsights={() => setActiveTab("insights")}
+          />
         }
-        logSlot={<LogPanel />}
-        protocolSlot={<ProtocolPanel />}
-        bioSlot={<BiofeedbackPanel />}
+        librarySlot={<LibraryPanel />}
+        inventorySlot={<InventoryPanel />}
+        insightsSlot={<InsightsPanel />}
         settingsSlot={<SettingsPanel />}
       />
     </>
