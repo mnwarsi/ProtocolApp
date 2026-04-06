@@ -17,6 +17,7 @@ const FACT_LABELS: Array<{ key: keyof LibraryEntry["quickFacts"]; label: string 
   { key: "frequency", label: "Frequency" },
   { key: "cycle", label: "Cycle" },
   { key: "storage", label: "Storage" },
+  { key: "halfLife", label: "Half-Life" },
 ];
 
 function SectionHeader({
