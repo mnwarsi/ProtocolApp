@@ -13,150 +13,171 @@ import { compoundColor } from "@/lib/compoundColor";
 
 const FACT_LABELS: Array<{ key: keyof LibraryEntry["quickFacts"]; label: string }> = [
   { key: "route", label: "Route" },
-  { key: "typicalDose", label: "Typical dose" },
+  { key: "typicalDose", label: "Typical Dose" },
   { key: "frequency", label: "Frequency" },
   { key: "cycle", label: "Cycle" },
   { key: "storage", label: "Storage" },
 ];
 
+function SectionHeader({
+  icon: Icon,
+  title,
+}: {
+  icon: typeof Microscope;
+  title: string;
+}) {
+  return (
+    <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground/55">
+      <Icon className="h-4 w-4 text-cyan/70" />
+      <span>{title}</span>
+    </div>
+  );
+}
+
 function DetailCard({ entry }: { entry: LibraryEntry }) {
   const color = compoundColor(entry.compoundId ?? entry.slug);
 
   return (
-    <section className="overflow-hidden rounded-[32px] border border-white/8 bg-[radial-gradient(circle_at_top_left,rgba(0,242,255,0.12),transparent_32%),linear-gradient(180deg,rgba(17,20,22,0.94),rgba(9,10,12,0.98))]">
-      <div className="border-b border-white/6 px-5 py-5 md:px-7">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="max-w-3xl">
+    <section className="overflow-hidden rounded-[32px] border border-white/8 bg-[radial-gradient(circle_at_top_left,rgba(0,242,255,0.12),transparent_26%),linear-gradient(180deg,rgba(17,20,22,0.96),rgba(9,10,12,0.99))]">
+      <div className="border-b border-white/6 px-5 py-6 md:px-7">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+          <div className="max-w-4xl">
             <div className="flex flex-wrap items-center gap-2">
               <span
-                className="rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.22em]"
+                className="rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.18em]"
                 style={{ borderColor: color.border, background: color.bg, color: color.text }}
               >
                 {entry.functionLabel}
               </span>
-              <span className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-muted-foreground/60">
+              <span className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-muted-foreground/62">
                 {entry.kind}
               </span>
+              {entry.aliases.length > 0 && (
+                <span className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1 text-[11px] text-muted-foreground/68">
+                  AKA {entry.aliases[0]}
+                </span>
+              )}
             </div>
-            <h2 className="mt-4 text-3xl font-semibold tracking-tight text-foreground">{entry.name}</h2>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground/76">{entry.headline}</p>
-            <p className="mt-4 max-w-3xl text-sm leading-6 text-muted-foreground/72">{entry.summary}</p>
+
+            <h2 className="mt-4 text-3xl font-semibold tracking-tight text-foreground md:text-[2.1rem]">
+              {entry.name}
+            </h2>
+            <p className="mt-3 max-w-3xl text-base leading-7 text-foreground/88">{entry.headline}</p>
+            <p className="mt-4 max-w-4xl text-sm leading-7 text-muted-foreground/74">{entry.summary}</p>
           </div>
 
-          <div className="rounded-[26px] border border-white/8 bg-black/20 px-4 py-4 text-sm text-muted-foreground/70">
-            <div className="text-[11px] uppercase tracking-[0.22em] text-cyan/70">Source</div>
-            <div className="mt-2 font-medium text-foreground">{entry.source.label}</div>
+          <div className="w-full rounded-[26px] border border-white/8 bg-black/20 p-4 xl:max-w-[320px]">
+            <div className="text-[11px] uppercase tracking-[0.18em] text-cyan/70">Source</div>
+            <div className="mt-2 text-sm font-medium text-foreground">{entry.source.label}</div>
+            <div className="mt-1 text-[11px] uppercase tracking-[0.14em] text-muted-foreground/45">
+              Reviewed {entry.source.lastReviewed}
+            </div>
             <a
               href={entry.source.href}
               target="_blank"
               rel="noreferrer"
-              className="mt-3 inline-flex items-center gap-2 text-sm text-cyan transition hover:text-cyan/80"
+              className="mt-4 flex min-h-12 items-center justify-between rounded-2xl border border-cyan/16 bg-cyan/[0.04] px-4 py-3 text-sm text-cyan transition hover:border-cyan/28 hover:bg-cyan/[0.06]"
             >
-              Open reference
-              <ArrowUpRight className="h-4 w-4" />
+              <span>Open reference</span>
+              <ArrowUpRight className="h-4 w-4 shrink-0" />
             </a>
-            <div className="mt-3 text-[11px] uppercase tracking-[0.16em] text-muted-foreground/45">
-              Reviewed {entry.source.lastReviewed}
-            </div>
           </div>
         </div>
       </div>
 
-      <div className="grid gap-4 px-5 py-5 md:px-7 xl:grid-cols-[1.15fr_0.85fr]">
-        <div className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {FACT_LABELS.map(({ key, label }) => (
-              <div key={key} className="rounded-[24px] border border-white/8 bg-black/20 p-4">
-                <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground/52">{label}</div>
-                <div className="mt-3 text-sm leading-6 text-foreground/88">{entry.quickFacts[key]}</div>
-              </div>
-            ))}
-          </div>
-
-          <div className="rounded-[26px] border border-white/8 bg-black/20 p-5">
-            <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.22em] text-muted-foreground/55">
-              <Microscope className="h-4 w-4 text-cyan/70" />
-              What It Does
+      <div className="space-y-4 px-5 py-5 md:px-7 md:py-6">
+        <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(170px,1fr))]">
+          {FACT_LABELS.map(({ key, label }) => (
+            <div key={key} className="rounded-[24px] border border-white/8 bg-black/20 px-4 py-4">
+              <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground/52">{label}</div>
+              <div className="mt-2 text-[15px] leading-7 text-foreground/88">{entry.quickFacts[key]}</div>
             </div>
-            <p className="mt-4 text-sm leading-7 text-muted-foreground/76">{entry.mechanism}</p>
-          </div>
-
-          <div className="rounded-[26px] border border-white/8 bg-black/20 p-5">
-            <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.22em] text-muted-foreground/55">
-              <Sparkles className="h-4 w-4 text-cyan/70" />
-              Common Research Goals
-            </div>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {entry.primaryGoals.map((goal) => (
-                <span
-                  key={goal}
-                  className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1.5 text-sm text-foreground/84"
-                >
-                  {goal}
-                </span>
-              ))}
-            </div>
-          </div>
+          ))}
         </div>
 
-        <div className="space-y-4">
-          <div className="rounded-[26px] border border-white/8 bg-black/20 p-5">
-            <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.22em] text-muted-foreground/55">
-              <AlertTriangle className="h-4 w-4 text-amber-300" />
-              Considerations
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,0.95fr)]">
+          <div className="space-y-4">
+            <div className="rounded-[26px] border border-white/8 bg-black/20 p-5 md:p-6">
+              <SectionHeader icon={Microscope} title="What It Does" />
+              <p className="mt-4 text-sm leading-7 text-muted-foreground/76">{entry.mechanism}</p>
             </div>
-            <div className="mt-4 space-y-3">
-              {entry.considerations.map((item) => (
-                <div key={item} className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 text-sm leading-6 text-muted-foreground/76">
-                  {item}
-                </div>
-              ))}
+
+            <div className="rounded-[26px] border border-white/8 bg-black/20 p-5 md:p-6">
+              <SectionHeader icon={Sparkles} title="Common Research Goals" />
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                {entry.primaryGoals.map((goal) => (
+                  <div
+                    key={goal}
+                    className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 text-sm text-foreground/84"
+                  >
+                    {goal}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-[26px] border border-white/8 bg-black/20 p-5 md:p-6">
+              <SectionHeader icon={AlertTriangle} title="Considerations" />
+              <div className="mt-4 space-y-3">
+                {entry.considerations.map((item) => (
+                  <div
+                    key={item}
+                    className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 text-sm leading-6 text-muted-foreground/76"
+                  >
+                    {item}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
-          <div className="rounded-[26px] border border-white/8 bg-black/20 p-5">
-            <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.22em] text-muted-foreground/55">
-              <ShieldAlert className="h-4 w-4 text-cyan/70" />
-              Overlap Signals
+          <div className="space-y-4">
+            <div className="rounded-[26px] border border-white/8 bg-black/20 p-5 md:p-6">
+              <SectionHeader icon={ShieldAlert} title="Overlap Signals" />
+              <div className="mt-4 space-y-3">
+                {entry.overlapSignals.map((item) => (
+                  <div
+                    key={item}
+                    className="rounded-2xl border border-cyan/14 bg-cyan/[0.04] px-4 py-3 text-sm leading-6 text-foreground/82"
+                  >
+                    {item}
+                  </div>
+                ))}
+              </div>
             </div>
-            <div className="mt-4 space-y-3">
-              {entry.overlapSignals.map((item) => (
-                <div key={item} className="rounded-2xl border border-cyan/10 bg-cyan/[0.04] px-4 py-3 text-sm leading-6 text-foreground/80">
-                  {item}
-                </div>
-              ))}
-            </div>
-          </div>
 
-          <div className="rounded-[26px] border border-white/8 bg-black/20 p-5">
-            <div className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground/55">Possible Friction Points</div>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {entry.sideEffectSignals.map((signal) => (
-                <span
-                  key={signal}
-                  className="rounded-full border border-amber-400/16 bg-amber-400/[0.06] px-3 py-1.5 text-sm text-amber-100/86"
-                >
-                  {signal}
-                </span>
-              ))}
+            <div className="rounded-[26px] border border-white/8 bg-black/20 p-5 md:p-6">
+              <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/55">
+                Possible Friction Points
+              </div>
+              <div className="mt-4 space-y-3">
+                {entry.sideEffectSignals.map((signal) => (
+                  <div
+                    key={signal}
+                    className="rounded-2xl border border-amber-400/18 bg-amber-400/[0.06] px-4 py-3 text-sm text-amber-100/88"
+                  >
+                    {signal}
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
 
-          <div className="rounded-[26px] border border-white/8 bg-black/20 p-5">
-            <div className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground/55">Research Links</div>
-            <div className="mt-4 space-y-2">
-              {entry.researchLinks.map((link) => (
-                <a
-                  key={link.href}
-                  href={link.href}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center justify-between rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 text-sm text-foreground/84 transition hover:border-cyan/20 hover:text-cyan"
-                >
-                  <span>{link.label}</span>
-                  <ArrowUpRight className="h-4 w-4" />
-                </a>
-              ))}
+            <div className="rounded-[26px] border border-white/8 bg-black/20 p-5 md:p-6">
+              <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/55">Research Links</div>
+              <div className="mt-4 space-y-2.5">
+                {entry.researchLinks.map((link) => (
+                  <a
+                    key={link.href}
+                    href={link.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex min-h-12 items-center justify-between rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 text-sm text-foreground/84 transition hover:border-cyan/20 hover:text-cyan"
+                  >
+                    <span>{link.label}</span>
+                    <ArrowUpRight className="h-4 w-4 shrink-0" />
+                  </a>
+                ))}
+              </div>
             </div>
           </div>
         </div>
