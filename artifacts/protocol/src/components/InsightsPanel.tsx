@@ -3,6 +3,7 @@ import { Activity, Brain, CalendarRange, FlaskConical, LineChart } from "lucide-
 import LogPanel from "@/components/LogPanel";
 import BiofeedbackPanel from "@/components/BiofeedbackPanel";
 import { useProtocolStore } from "@/store/protocolStore";
+import { releaseFlags } from "@/lib/releaseFlags";
 
 function average(values: number[]): number {
   if (values.length === 0) return 0;
@@ -54,8 +55,8 @@ export default function InsightsPanel() {
         <div className="text-[11px] uppercase tracking-[0.22em] text-cyan/70">Insights</div>
         <h1 className="mt-2 text-2xl font-semibold text-foreground">Review outcomes, not just raw charts</h1>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground/76">
-          Keep the biometrics, timeline, and history you already have, but organize them around interpretation:
-          what changed, what you felt, and what your current cycle might be doing.
+          Keep your timeline and history organized around interpretation: what changed, what you felt, and
+          what your current cycle might be doing.
         </p>
 
         <div className="mt-6 grid gap-3 md:grid-cols-4">
@@ -78,9 +79,9 @@ export default function InsightsPanel() {
             icon={FlaskConical}
           />
           <SummaryCard
-            label="Biomarkers"
+            label="Active vials"
             value={`${overview.activeVials}`}
-            hint="Active vials available for correlation"
+            hint="Active inventory available right now"
             icon={LineChart}
           />
         </div>
@@ -91,10 +92,12 @@ export default function InsightsPanel() {
         <LogPanel />
       </section>
 
-      <section className="rounded-[28px] border border-white/8 bg-card/85 p-5">
-        <div className="mb-4 text-[11px] uppercase tracking-[0.22em] text-muted-foreground/55">Biomarker trends</div>
-        <BiofeedbackPanel />
-      </section>
+      {releaseFlags.enableWearables ? (
+        <section className="rounded-[28px] border border-white/8 bg-card/85 p-5">
+          <div className="mb-4 text-[11px] uppercase tracking-[0.22em] text-muted-foreground/55">Biomarker trends</div>
+          <BiofeedbackPanel />
+        </section>
+      ) : null}
     </div>
   );
 }
