@@ -1,0 +1,80 @@
+{
+  "compoundIdBySlug": {
+    "bpc-157": "bpc-157",
+    "tb-500": "tb-500",
+    "ipamorelin": "ipamorelin",
+    "cjc-1295": "cjc-1295",
+    "cjc-1295-dac": "cjc-1295",
+    "pt-141": "pt-141",
+    "semaglutide": "semaglutide"
+  },
+  "functionClassBySlug": {
+    "bpc-157": "repair",
+    "tb-500": "repair",
+    "ipamorelin": "growth",
+    "cjc-1295": "growth",
+    "cjc-1295-dac": "growth",
+    "pt-141": "aesthetic",
+    "semaglutide": "metabolic",
+    "selank": "performance",
+    "semax": "performance",
+    "na-semax-amidate": "performance",
+    "ghk-cu": "aesthetic",
+    "melanotan-ii": "aesthetic",
+    "retatrutide": "metabolic",
+    "tirzepatide": "metabolic",
+    "mots-c": "metabolic",
+    "epitalon": "aesthetic",
+    "thymosin-beta-4": "repair"
+  },
+  "shortNameBySlug": {
+    "bpc-157": "BPC",
+    "tb-500": "TB",
+    "ipamorelin": "Ipa",
+    "cjc-1295": "CJC",
+    "cjc-1295-dac": "CJC DAC",
+    "pt-141": "PT",
+    "semaglutide": "Sema",
+    "na-semax-amidate": "NA Semax",
+    "5-amino-1mq": "1MQ",
+    "thymosin-beta-4": "Tβ4"
+  },
+  "headlineBySlug": {},
+  "halfLifeOverridesBySlug": {
+    "bpc-157": {
+      "halfLifeLabel": "4 hrs",
+      "halfLifeHours": 4,
+      "confidence": "exact"
+    },
+    "tb-500": {
+      "halfLifeLabel": "96 hrs",
+      "halfLifeHours": 96,
+      "confidence": "exact"
+    },
+    "cjc-1295": {
+      "halfLifeLabel": "0.5 hrs",
+      "halfLifeHours": 0.5,
+      "confidence": "estimated"
+    },
+    "cjc-1295-dac": {
+      "halfLifeLabel": "192 hrs",
+      "halfLifeHours": 192,
+      "confidence": "estimated"
+    },
+    "ipamorelin": {
+      "halfLifeLabel": "2 hrs",
+      "halfLifeHours": 2,
+      "confidence": "exact"
+    },
+    "pt-141": {
+      "halfLifeLabel": "12 hrs",
+      "halfLifeHours": 12,
+      "confidence": "estimated"
+    },
+    "semaglutide": {
+      "halfLifeLabel": "168 hrs",
+      "halfLifeHours": 168,
+      "confidence": "exact"
+    }
+  }
+}

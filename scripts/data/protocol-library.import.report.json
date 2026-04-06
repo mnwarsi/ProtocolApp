@@ -1,0 +1,214 @@
+{
+  "fetchedAt": "2026-04-06T01:19:38.789Z",
+  "discoveredUrls": 76,
+  "importedEntries": 76,
+  "warnings": [
+    {
+      "slug": "adalank",
+      "warnings": [
+        "Missing half-life",
+        "Function class inferred via fallback"
+      ]
+    },
+    {
+      "slug": "adamax",
+      "warnings": [
+        "Missing half-life"
+      ]
+    },
+    {
+      "slug": "adipotide",
+      "warnings": [
+        "Missing half-life"
+      ]
+    },
+    {
+      "slug": "ahk-cu",
+      "warnings": [
+        "Missing half-life"
+      ]
+    },
+    {
+      "slug": "ara-290",
+      "warnings": [
+        "Missing half-life"
+      ]
+    },
+    {
+      "slug": "bromantane",
+      "warnings": [
+        "Missing half-life"
+      ]
+    },
+    {
+      "slug": "cardiogen",
+      "warnings": [
+        "Missing half-life"
+      ]
+    },
+    {
+      "slug": "cartalax",
+      "warnings": [
+        "Missing half-life"
+      ]
+    },
+    {
+      "slug": "cjc-ipa-protocol",
+      "warnings": [
+        "Missing half-life"
+      ]
+    },
+    {
+      "slug": "cyclic-glycine-proline",
+      "warnings": [
+        "Missing half-life"
+      ]
+    },
+    {
+      "slug": "epitalon",
+      "warnings": [
+        "Missing half-life"
+      ]
+    },
+    {
+      "slug": "foxo4-dri",
+      "warnings": [
+        "Function class inferred via fallback"
+      ]
+    },
+    {
+      "slug": "glow",
+      "warnings": [
+        "Missing half-life"
+      ]
+    },
+    {
+      "slug": "glutathione",
+      "warnings": [
+        "Missing overlap signals",
+        "Missing half-life"
+      ]
+    },
+    {
+      "slug": "hcg",
+      "warnings": [
+        "Missing half-life"
+      ]
+    },
+    {
+      "slug": "hgh",
+      "warnings": [
+        "Missing half-life"
+      ]
+    },
+    {
+      "slug": "igf-1-lr3",
+      "warnings": [
+        "Missing half-life"
+      ]
+    },
+    {
+      "slug": "klow",
+      "warnings": [
+        "Missing half-life"
+      ]
+    },
+    {
+      "slug": "lipo-c",
+      "warnings": [
+        "Missing half-life"
+      ]
+    },
+    {
+      "slug": "mazdutide",
+      "warnings": [
+        "Missing half-life"
+      ]
+    },
+    {
+      "slug": "melanotan-1",
+      "warnings": [
+        "Missing half-life"
+      ]
+    },
+    {
+      "slug": "mk-677",
+      "warnings": [
+        "Missing half-life"
+      ]
+    },
+    {
+      "slug": "na-semax-amidate",
+      "warnings": [
+        "Missing half-life"
+      ]
+    },
+    {
+      "slug": "omberacetam",
+      "warnings": [
+        "Missing half-life"
+      ]
+    },
+    {
+      "slug": "pe-22-28",
+      "warnings": [
+        "Missing half-life",
+        "Function class inferred via fallback"
+      ]
+    },
+    {
+      "slug": "peg-mgf",
+      "warnings": [
+        "Missing half-life"
+      ]
+    },
+    {
+      "slug": "pinealon",
+      "warnings": [
+        "Missing half-life"
+      ]
+    },
+    {
+      "slug": "pnc-27",
+      "warnings": [
+        "Missing half-life"
+      ]
+    },
+    {
+      "slug": "prostamax",
+      "warnings": [
+        "Missing half-life"
+      ]
+    },
+    {
+      "slug": "slu-pp-332",
+      "warnings": [
+        "Missing half-life"
+      ]
+    },
+    {
+      "slug": "snap-8",
+      "warnings": [
+        "Missing half-life"
+      ]
+    },
+    {
+      "slug": "thymosin-beta-4",
+      "warnings": [
+        "Missing half-life"
+      ]
+    },
+    {
+      "slug": "trt",
+      "warnings": [
+        "Missing half-life"
+      ]
+    },
+    {
+      "slug": "wolverine-stack",
+      "warnings": [
+        "Missing half-life"
+      ]
+    }
+  ]
+}

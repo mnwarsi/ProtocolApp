@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "generate-library": "tsx ./src/generate-library.ts",
+    "import-peppedia": "tsx ./src/import-peppedia.ts",
+    "diff-library-import": "tsx ./src/diff-library-import.ts",
+    "merge-library-import": "tsx ./src/merge-library-import.ts",
     "hello": "tsx ./src/hello.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
