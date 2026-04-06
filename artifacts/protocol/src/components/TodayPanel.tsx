@@ -6,9 +6,11 @@ import {
   Clock3,
   Droplets,
   Package2,
+  Search,
   ShieldCheck,
 } from "lucide-react";
 import { getCompoundById } from "@/data/compounds";
+import { LIBRARY_ENTRIES } from "@/data/library";
 import { calculate, convertToMcg, formatConcentration, formatRelativeTime, formatUnits, getNextDoseTime } from "@/lib/mathEngine";
 import { compoundColor } from "@/lib/compoundColor";
 import SyringeDisplay from "@/components/SyringeDisplay";
@@ -31,6 +33,22 @@ interface TodayPanelProps {
 interface NextDoseCard {
   protocol: ActiveProtocol | null;
   nextDoseAt: Date | null;
+}
+
+function getTodayLibraryEntry(id: string) {
+  return LIBRARY_ENTRIES.find((entry) => entry.id === id || entry.compoundId === id || entry.slug === id);
+}
+
+function parseDoseSuggestion(typicalDose: string): { dose: number; unit: "mcg" | "mg" } | null {
+  const match = typicalDose.match(/(\d+(?:\.\d+)?)/);
+  if (!match) return null;
+  const dose = parseFloat(match[1]);
+  if (!Number.isFinite(dose)) return null;
+  const lower = typicalDose.toLowerCase();
+  return {
+    dose,
+    unit: lower.includes("mg") ? "mg" : "mcg",
+  };
 }
 
 function getNextDoseCard(protocols: ActiveProtocol[], entries: DoseLogEntry[]): NextDoseCard {
@@ -76,12 +94,16 @@ export default function TodayPanel({ onOpenInventory, onOpenInsights }: TodayPan
   const [actualDose, setActualDose] = useState<number>(0);
   const [actualDoseUnit, setActualDoseUnit] = useState<"mcg" | "mg">("mcg");
   const [actualTimestamp, setActualTimestamp] = useState("");
+  const [manualCompoundId, setManualCompoundId] = useState<string | null>(null);
+  const [compoundQuery, setCompoundQuery] = useState("");
+  const [showCompoundResults, setShowCompoundResults] = useState(false);
 
   const nextDoseCard = useMemo(() => getNextDoseCard(protocols, entries), [protocols, entries]);
   const protocolProgress = nextDoseCard.protocol ? getProtocolProgress(nextDoseCard.protocol, entries) : null;
   const activeStep = protocolProgress?.activeStep ?? null;
-  const heroCompoundId = nextDoseCard.protocol?.compoundId ?? selectedCompoundId;
+  const heroCompoundId = nextDoseCard.protocol?.compoundId ?? manualCompoundId ?? selectedCompoundId;
   const compound = getCompoundById(heroCompoundId);
+  const libraryEntry = getTodayLibraryEntry(heroCompoundId);
   const color = compoundColor(heroCompoundId);
   const vialSelection = getVialSelectionStateForCompound(inventoryVials, entries, heroCompoundId);
   const activeVials = vialSelection.vials;
@@ -91,8 +113,9 @@ export default function TodayPanel({ onOpenInventory, onOpenInsights }: TodayPan
 
   const lastLogged = getLastLoggedForCompound(entries, heroCompoundId);
   const typicalDose = getTypicalDoseForCompound(entries, heroCompoundId);
-  const targetDoseValue = activeStep?.dose ?? targetDose;
-  const targetDoseValueUnit = activeStep?.doseUnit ?? targetDoseUnit;
+  const suggestedLibraryDose = libraryEntry ? parseDoseSuggestion(libraryEntry.quickFacts.typicalDose) : null;
+  const targetDoseValue = activeStep?.dose ?? suggestedLibraryDose?.dose ?? targetDose;
+  const targetDoseValueUnit = activeStep?.doseUnit ?? suggestedLibraryDose?.unit ?? targetDoseUnit;
   const effectiveDose = actualDose;
   const effectiveDoseUnit = actualDoseUnit;
   const adHocResult = calculate({
@@ -142,12 +165,64 @@ export default function TodayPanel({ onOpenInventory, onOpenInsights }: TodayPan
     .slice(0, 3);
 
   const recentNotes = entries.filter((entry) => entry.symptomNote || (entry.symptomTags?.length ?? 0) > 0).slice(0, 3);
+  const inventoryCompoundOptions = useMemo(() => {
+    const activeCompoundIds = Array.from(
+      new Set(
+        inventoryVials
+          .filter((vial) => vial.status === "active")
+          .map((vial) => vial.compoundId)
+      )
+    );
+
+    return activeCompoundIds
+      .map((id) => getTodayLibraryEntry(id))
+      .filter((entry): entry is NonNullable<ReturnType<typeof getTodayLibraryEntry>> => Boolean(entry))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [inventoryVials]);
+  const filteredCompoundOptions = useMemo(() => {
+    const normalized = compoundQuery.trim().toLowerCase();
+    const entries = inventoryCompoundOptions;
+    if (!normalized) {
+      return entries.slice(0, 12);
+    }
+    return entries
+      .filter((entry) =>
+        [
+          entry.name,
+          entry.shortName,
+          ...entry.aliases,
+          entry.headline,
+          ...entry.primaryGoals,
+        ].some((field) => field.toLowerCase().includes(normalized))
+      )
+      .slice(0, 12);
+  }, [compoundQuery]);
 
   useEffect(() => {
     setActualDose(targetDoseValue);
     setActualDoseUnit(targetDoseValueUnit);
     setActualTimestamp(new Date().toISOString().slice(0, 16));
   }, [heroCompoundId, targetDoseValue, targetDoseValueUnit]);
+
+  useEffect(() => {
+    if (nextDoseCard.protocol) {
+      setManualCompoundId(null);
+      return;
+    }
+
+    setManualCompoundId((current) => {
+      if (current && inventoryCompoundOptions.some((entry) => (entry.compoundId ?? entry.id) === current)) {
+        return current;
+      }
+      const fallbackId = inventoryCompoundOptions[0]?.compoundId ?? inventoryCompoundOptions[0]?.id ?? selectedCompoundId;
+      return fallbackId ?? null;
+    });
+  }, [inventoryCompoundOptions, nextDoseCard.protocol, selectedCompoundId]);
+
+  useEffect(() => {
+    const label = libraryEntry?.name ?? compound?.name ?? "Pick peptide";
+    setCompoundQuery(label);
+  }, [compound?.name, libraryEntry?.name]);
 
   useEffect(() => {
     if (vialSelection.mode === "mixed_concentrations") {
@@ -174,7 +249,7 @@ export default function TodayPanel({ onOpenInventory, onOpenInsights }: TodayPan
       : adHocResult.valid ? adHocResult.syringeUnits : result?.syringeUnits ?? 0;
 
     logDose({
-      compound: compound?.name ?? "Custom",
+      compound: libraryEntry?.name ?? compound?.name ?? "Custom",
       compoundId: heroCompoundId,
       protocolId: nextDoseCard.protocol?.id,
       inventoryVialId: chosenVial?.id,
@@ -200,11 +275,11 @@ export default function TodayPanel({ onOpenInventory, onOpenInsights }: TodayPan
           <div className="space-y-2">
             <div className="text-[11px] uppercase tracking-[0.24em] text-cyan/70">Today</div>
             <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-              {compound?.name ?? "Next dose"}
+              {libraryEntry?.name ?? compound?.name ?? "Next dose"}
             </h1>
             <p className="max-w-md text-sm leading-6 text-muted-foreground/78">
               {nextDoseCard.protocol
-                ? `${compound?.purpose ?? "Next planned dose"}`
+                ? `${compound?.purpose ?? libraryEntry?.summary ?? "Next planned dose"}`
                 : "Use a saved vial or the inventory calculator to log with confidence."}
             </p>
           </div>
@@ -222,6 +297,69 @@ export default function TodayPanel({ onOpenInventory, onOpenInsights }: TodayPan
             </div>
           </div>
         </div>
+
+        {!nextDoseCard.protocol && (
+          <div className="mt-6 max-w-md">
+            <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/55">Peptide</div>
+            {inventoryCompoundOptions.length === 0 ? (
+              <div className="mt-2 rounded-2xl border border-dashed border-white/10 bg-black/20 px-4 py-4 text-sm text-muted-foreground/62">
+                No active vials yet. Add a peptide in Inventory to log it here.
+              </div>
+            ) : (
+              <div className="relative mt-2">
+                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/40" />
+                <input
+                  value={compoundQuery}
+                  onChange={(event) => {
+                    setCompoundQuery(event.target.value);
+                    setShowCompoundResults(true);
+                  }}
+                  onFocus={() => setShowCompoundResults(true)}
+                  onBlur={() => {
+                    window.setTimeout(() => {
+                      setShowCompoundResults(false);
+                      setCompoundQuery(libraryEntry?.name ?? compound?.name ?? "");
+                    }, 120);
+                  }}
+                  placeholder="Search active peptide"
+                  className="w-full rounded-2xl border border-white/8 bg-black/20 py-3 pl-11 pr-4 text-sm text-foreground focus:border-cyan/24 focus:outline-none"
+                />
+                {showCompoundResults && (
+                  <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-20 max-h-80 overflow-y-auto rounded-[24px] border border-white/8 bg-[#0b0d0f] p-2 shadow-2xl">
+                    {filteredCompoundOptions.length === 0 ? (
+                      <div className="rounded-2xl px-4 py-3 text-sm text-muted-foreground/60">
+                        No active inventory matched that search.
+                      </div>
+                    ) : (
+                      filteredCompoundOptions.map((entry) => (
+                        <button
+                          key={entry.id}
+                          type="button"
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => {
+                            setManualCompoundId(entry.compoundId ?? entry.id);
+                            setShowCompoundResults(false);
+                          }}
+                          className="flex w-full items-start justify-between rounded-2xl px-4 py-3 text-left transition hover:bg-white/[0.04]"
+                        >
+                          <div>
+                            <div className="text-sm font-medium text-foreground">{entry.name}</div>
+                            <div className="mt-1 text-xs text-muted-foreground/60">
+                              {entry.quickFacts.typicalDose} · {entry.quickFacts.frequency}
+                            </div>
+                          </div>
+                          <div className="pl-3 text-[11px] uppercase tracking-[0.14em] text-cyan/70">
+                            {entry.shortName}
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="mt-8 grid gap-4 md:grid-cols-[1.4fr_0.8fr]">
           <div className="rounded-[24px] border border-white/8 bg-black/20 p-5">
@@ -327,8 +465,11 @@ export default function TodayPanel({ onOpenInventory, onOpenInsights }: TodayPan
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               <button
                 onClick={handleLogNow}
-                disabled={vialSelection.mode === "mixed_concentrations" && !selectedVialId}
-                className="rounded-2xl bg-cyan px-4 py-3 text-sm font-semibold text-black transition hover:bg-cyan/90"
+                disabled={
+                  (vialSelection.mode === "mixed_concentrations" && !selectedVialId) ||
+                  (!nextDoseCard.protocol && inventoryCompoundOptions.length === 0)
+                }
+                className="rounded-2xl bg-cyan px-4 py-3 text-sm font-semibold text-black transition hover:bg-cyan/90 disabled:cursor-not-allowed disabled:bg-cyan/18 disabled:text-cyan/38"
                 style={{ boxShadow: "0 0 16px rgba(0,242,255,0.18)" }}
               >
                 Log Now
