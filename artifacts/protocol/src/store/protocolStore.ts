@@ -93,6 +93,18 @@ export interface InventoryVial {
   notes?: string;
 }
 
+export type UnitSystem = "metric" | "imperial";
+export type GoalFocus = "general" | "fat-loss" | "recovery" | "performance" | "longevity";
+
+export interface UserProfile {
+  weight: number | null;
+  unitSystem: UnitSystem;
+  goalFocus: GoalFocus;
+  medicalConditions: string[];
+  medications: string[];
+  sensitivities: string[];
+}
+
 // ─── Sensitive payload (encrypted or plain) ───────────────────────────────────
 
 interface SensitivePayload {
@@ -101,6 +113,7 @@ interface SensitivePayload {
   templates: SavedTemplate[];
   injectionSites?: InjectionSiteEntry[];
   inventoryVials?: InventoryVial[];
+  profile?: UserProfile;
   syncedAt?: string;
 }
 
@@ -133,6 +146,7 @@ interface RuntimeState {
   templates: SavedTemplate[];
   injectionSites: InjectionSiteEntry[];
   inventoryVials: InventoryVial[];
+  profile: UserProfile;
 }
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
@@ -198,6 +212,15 @@ interface InventoryActions {
   archiveInventoryVial: (id: string) => void;
 }
 
+interface ProfileActions {
+  setUnitSystem: (unitSystem: UnitSystem) => void;
+  setWeight: (weight: number | null) => void;
+  setGoalFocus: (goalFocus: GoalFocus) => void;
+  setMedicalConditions: (medicalConditions: string[]) => void;
+  setMedications: (medications: string[]) => void;
+  setSensitivities: (sensitivities: string[]) => void;
+}
+
 interface TierState {
   tier: "free" | "pro";
   cloudSyncing: boolean;
@@ -224,6 +247,7 @@ type ProtocolStore = CalculatorState &
   TemplateActions &
   InjectionSiteActions &
   InventoryActions &
+  ProfileActions &
   TierActions;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -237,6 +261,15 @@ const DEFAULT_CALC: CalculatorState = {
   targetDose: 250,
   targetDoseUnit: "mcg",
   result: null,
+};
+
+const DEFAULT_PROFILE: UserProfile = {
+  weight: null,
+  unitSystem: "metric",
+  goalFocus: "general",
+  medicalConditions: [],
+  medications: [],
+  sensitivities: [],
 };
 
 function computeResult(state: CalculatorState): ReconstitutionResult | null {
@@ -379,8 +412,8 @@ export const useProtocolStore = create<ProtocolStore>()(
     (set, get) => {
       // Helper: persist sensitive data after each mutation
       const syncSensitive = (): void => {
-        const { entries, protocols, templates, injectionSites, inventoryVials, hasPassphrase, sessionKey } = get();
-        const payload: SensitivePayload = { entries, protocols, templates, injectionSites, inventoryVials };
+        const { entries, protocols, templates, injectionSites, inventoryVials, profile, hasPassphrase, sessionKey } = get();
+        const payload: SensitivePayload = { entries, protocols, templates, injectionSites, inventoryVials, profile };
         if (hasPassphrase && sessionKey) {
           encryptPayload(sessionKey, payload)
             .then((encrypted) => {
@@ -428,6 +461,7 @@ export const useProtocolStore = create<ProtocolStore>()(
         templates: [],
         injectionSites: [],
         inventoryVials: [],
+        profile: DEFAULT_PROFILE,
 
         // ── Tier + cloud sync ──
         tier: "free",
@@ -492,7 +526,7 @@ export const useProtocolStore = create<ProtocolStore>()(
             const salt = base64ToSalt(saltBase64);
             const key = await deriveKey(passphrase, salt);
             const encryptedRaw = localStorage.getItem(ENCRYPTED_STORAGE_KEY);
-            let payload: SensitivePayload = { entries: [], protocols: [], templates: [] };
+            let payload: SensitivePayload = { entries: [], protocols: [], templates: [], profile: DEFAULT_PROFILE };
             if (encryptedRaw) {
               payload = (await decryptPayload(key, encryptedRaw)) as SensitivePayload;
             }
@@ -507,6 +541,7 @@ export const useProtocolStore = create<ProtocolStore>()(
               inventoryVials: (payload.inventoryVials ?? []).map((vial) =>
                 hydrateInventoryVial(vial, payload.entries ?? [])
               ),
+              profile: payload.profile ?? DEFAULT_PROFILE,
             });
             startAutoLock();
           } catch {
@@ -529,11 +564,11 @@ export const useProtocolStore = create<ProtocolStore>()(
         },
 
         setPassphrase: async (passphrase) => {
-          const { entries, protocols, templates, injectionSites, inventoryVials } = get();
+          const { entries, protocols, templates, injectionSites, inventoryVials, profile } = get();
           const salt = await generateSalt();
           const saltB64 = saltToBase64(salt);
           const key = await deriveKey(passphrase, salt);
-          const payload: SensitivePayload = { entries, protocols, templates, injectionSites, inventoryVials };
+          const payload: SensitivePayload = { entries, protocols, templates, injectionSites, inventoryVials, profile };
           const encrypted = await encryptPayload(key, payload);
           localStorage.setItem(ENCRYPTED_STORAGE_KEY, encrypted);
           localStorage.removeItem(PLAIN_STORAGE_KEY);
@@ -554,8 +589,8 @@ export const useProtocolStore = create<ProtocolStore>()(
             await decryptPayload(key, encryptedRaw);
           }
           // Passphrase verified — save current in-memory data as plaintext
-          const { entries, protocols, templates, injectionSites, inventoryVials } = get();
-          savePlainPayload({ entries, protocols, templates, injectionSites, inventoryVials });
+          const { entries, protocols, templates, injectionSites, inventoryVials, profile } = get();
+          savePlainPayload({ entries, protocols, templates, injectionSites, inventoryVials, profile });
           localStorage.removeItem(ENCRYPTED_STORAGE_KEY);
           clearAutoLockTimer();
           set({ hasPassphrase: false, saltBase64: null, sessionKey: null, isLocked: false });
@@ -755,6 +790,37 @@ export const useProtocolStore = create<ProtocolStore>()(
           syncSensitive();
         },
 
+        // ── Profile actions ──
+        setUnitSystem: (unitSystem) => {
+          set((state) => ({ profile: { ...state.profile, unitSystem } }));
+          syncSensitive();
+        },
+
+        setWeight: (weight) => {
+          set((state) => ({ profile: { ...state.profile, weight } }));
+          syncSensitive();
+        },
+
+        setGoalFocus: (goalFocus) => {
+          set((state) => ({ profile: { ...state.profile, goalFocus } }));
+          syncSensitive();
+        },
+
+        setMedicalConditions: (medicalConditions) => {
+          set((state) => ({ profile: { ...state.profile, medicalConditions } }));
+          syncSensitive();
+        },
+
+        setMedications: (medications) => {
+          set((state) => ({ profile: { ...state.profile, medications } }));
+          syncSensitive();
+        },
+
+        setSensitivities: (sensitivities) => {
+          set((state) => ({ profile: { ...state.profile, sensitivities } }));
+          syncSensitive();
+        },
+
         // ── Tier + cloud sync actions ──
         setTier: (tier) => set({ tier }),
         setSignedInUserId: (userId) => set({ signedInUserId: userId }),
@@ -776,6 +842,7 @@ export const useProtocolStore = create<ProtocolStore>()(
               templates: state.templates,
               injectionSites: state.injectionSites,
               inventoryVials: state.inventoryVials,
+              profile: state.profile,
               syncedAt,
             };
             const blob = await encryptForCloud(userId, payload);
@@ -816,6 +883,7 @@ export const useProtocolStore = create<ProtocolStore>()(
               inventoryVials: (payload.inventoryVials ?? []).map((vial) =>
                 hydrateInventoryVial(vial, payload.entries ?? [])
               ),
+              profile: payload.profile ?? DEFAULT_PROFILE,
               lastCloudSyncAt: cloudSyncedAt,
             });
             return true;
@@ -859,6 +927,7 @@ const bootstrapStore = () => {
         inventoryVials: (payload.inventoryVials ?? []).map((vial) =>
           hydrateInventoryVial(vial, payload.entries ?? [])
         ),
+        profile: payload.profile ?? DEFAULT_PROFILE,
         isLocked: false,
       });
     }

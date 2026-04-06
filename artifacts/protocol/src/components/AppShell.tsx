@@ -15,7 +15,7 @@ const TABS: Array<{ key: AppTab; label: string; icon: typeof Activity }> = [
   { key: "library", label: "Library", icon: BookOpenText },
   { key: "inventory", label: "Inventory", icon: FlaskConical },
   { key: "insights", label: "Insights", icon: LineChart },
-  { key: "settings", label: "Settings", icon: Settings2 },
+  { key: "settings", label: "Profile", icon: Settings2 },
 ];
 
 interface AppShellProps {
