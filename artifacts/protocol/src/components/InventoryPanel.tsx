@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
-import { Beaker, CheckCircle2, Droplets, PackageOpen, Pencil, Trash2, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Beaker, CheckCircle2, Droplets, PackageOpen, Pencil, Search, Trash2, X } from "lucide-react";
 import { COMPOUNDS, getCompoundById } from "@/data/compounds";
+import { LIBRARY_ENTRIES, getLibraryEntryById } from "@/data/library";
 import { compoundColor } from "@/lib/compoundColor";
 import { calculate, convertToMcg, formatFormula } from "@/lib/mathEngine";
 import { formatConcentration, formatUnits } from "@/lib/mathEngine";
@@ -22,6 +23,18 @@ function getVialBadge(vial: InventoryVial) {
 
 function concentrationsMatch(a: number, b: number) {
   return Math.abs(a - b) < 0.0001;
+}
+
+function parseDoseSuggestion(typicalDose: string): { dose: number; unit: "mcg" | "mg" } | null {
+  const match = typicalDose.match(/(\d+(?:\.\d+)?)/);
+  if (!match) return null;
+  const dose = parseFloat(match[1]);
+  if (!Number.isFinite(dose)) return null;
+  const lower = typicalDose.toLowerCase();
+  return {
+    dose,
+    unit: lower.includes("mg") ? "mg" : "mcg",
+  };
 }
 
 interface VialEditDraft {
@@ -56,7 +69,36 @@ export default function InventoryPanel() {
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const [editingVialId, setEditingVialId] = useState<string | null>(null);
   const [draft, setDraft] = useState<VialEditDraft | null>(null);
-  const selectedCompound = getCompoundById(selectedCompoundId) ?? COMPOUNDS[0];
+  const [peptideQuery, setPeptideQuery] = useState("");
+  const [showPeptideResults, setShowPeptideResults] = useState(false);
+  const peptideOptions = useMemo(
+    () =>
+      LIBRARY_ENTRIES
+        .filter((entry) => entry.kind === "peptide")
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    []
+  );
+  const selectedLibraryEntry = getLibraryEntryById(selectedCompoundId);
+  const selectedCompound = getCompoundById(selectedLibraryEntry?.compoundId ?? selectedCompoundId);
+  const selectedDisplayName = selectedLibraryEntry?.name ?? selectedCompound?.name ?? COMPOUNDS[0].name;
+  const selectedShortName = selectedLibraryEntry?.shortName ?? selectedCompound?.shortName ?? COMPOUNDS[0].shortName;
+  const filteredPeptideOptions = useMemo(() => {
+    const normalized = peptideQuery.trim().toLowerCase();
+    if (!normalized) {
+      return peptideOptions.slice(0, 12);
+    }
+    return peptideOptions
+      .filter((entry) =>
+        [
+          entry.name,
+          entry.shortName,
+          ...entry.aliases,
+          entry.headline,
+          ...entry.primaryGoals,
+        ].some((field) => field.toLowerCase().includes(normalized))
+      )
+      .slice(0, 12);
+  }, [peptideOptions, peptideQuery]);
   const sortedVials = useMemo(
     () =>
       [...inventoryVials]
@@ -86,10 +128,30 @@ export default function InventoryPanel() {
       concentrationMcgPerUnit: result.concentrationMcgPerUnit,
       defaultDose: targetDose,
       defaultDoseUnit: targetDoseUnit,
-      notes: selectedCompound.notes,
+      notes: selectedCompound?.notes ?? selectedLibraryEntry?.quickFacts.storage,
     });
-    setSavedMessage(`Saved ${selectedCompound.shortName} vial (${vialId.slice(0, 6)})`);
+    setSavedMessage(`Saved ${selectedShortName} vial (${vialId.slice(0, 6)})`);
     setTimeout(() => setSavedMessage(null), 2400);
+  };
+
+  useEffect(() => {
+    setPeptideQuery(selectedDisplayName);
+  }, [selectedDisplayName]);
+
+  const handleSelectPeptide = (nextId: string) => {
+    setCompound(nextId);
+    const nextLibraryEntry = getLibraryEntryById(nextId);
+    const nextCompound = getCompoundById(nextLibraryEntry?.compoundId ?? nextId);
+    const suggestion = nextLibraryEntry ? parseDoseSuggestion(nextLibraryEntry.quickFacts.typicalDose) : null;
+    setPeptideQuery(nextLibraryEntry?.name ?? "");
+    setShowPeptideResults(false);
+    if (nextCompound) {
+      return;
+    }
+    if (suggestion) {
+      setTargetDose(suggestion.dose);
+      setDoseUnit(suggestion.unit);
+    }
   };
 
   const startEditing = (vial: InventoryVial) => {
@@ -165,17 +227,54 @@ export default function InventoryPanel() {
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           <label className="space-y-2">
             <span className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/55">Peptide</span>
-            <select
-              value={selectedCompoundId}
-              onChange={(e) => setCompound(e.target.value)}
-              className="w-full rounded-2xl border border-white/8 bg-black/20 px-4 py-3 text-sm text-foreground focus:border-cyan/24 focus:outline-none"
-            >
-              {COMPOUNDS.map((compound) => (
-                <option key={compound.id} value={compound.id}>
-                  {compound.name}
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/40" />
+              <input
+                value={peptideQuery}
+                onChange={(e) => {
+                  setPeptideQuery(e.target.value);
+                  setShowPeptideResults(true);
+                }}
+                onFocus={() => setShowPeptideResults(true)}
+                onBlur={() => {
+                  window.setTimeout(() => {
+                    setShowPeptideResults(false);
+                    setPeptideQuery(selectedDisplayName);
+                  }, 120);
+                }}
+                placeholder="Search peptide"
+                className="w-full rounded-2xl border border-white/8 bg-black/20 py-3 pl-11 pr-4 text-sm text-foreground focus:border-cyan/24 focus:outline-none"
+              />
+              {showPeptideResults && (
+                <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-20 max-h-80 overflow-y-auto rounded-[24px] border border-white/8 bg-[#0b0d0f] p-2 shadow-2xl">
+                  {filteredPeptideOptions.length === 0 ? (
+                    <div className="rounded-2xl px-4 py-3 text-sm text-muted-foreground/60">
+                      No peptides matched that search.
+                    </div>
+                  ) : (
+                    filteredPeptideOptions.map((entry) => (
+                      <button
+                        key={entry.id}
+                        type="button"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => handleSelectPeptide(entry.id)}
+                        className="flex w-full items-start justify-between rounded-2xl px-4 py-3 text-left transition hover:bg-white/[0.04]"
+                      >
+                        <div>
+                          <div className="text-sm font-medium text-foreground">{entry.name}</div>
+                          <div className="mt-1 text-xs text-muted-foreground/60">
+                            {entry.quickFacts.typicalDose} · {entry.quickFacts.frequency}
+                          </div>
+                        </div>
+                        <div className="pl-3 text-[11px] uppercase tracking-[0.14em] text-cyan/70">
+                          {entry.shortName}
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
           </label>
 
           <label className="space-y-2">
@@ -233,10 +332,12 @@ export default function InventoryPanel() {
                 </div>
                 <div className="pb-2 text-lg text-muted-foreground/55">units</div>
               </div>
-              <div className="mt-3 text-sm text-muted-foreground/72">
-                {selectedCompound.defaultDoseUnit === targetDoseUnit
-                  ? `Recommended for ${selectedCompound.shortName}: ${targetDose}${targetDoseUnit}`
-                  : `Adjusted from ${selectedCompound.shortName} defaults`}
+                <div className="mt-3 text-sm text-muted-foreground/72">
+                {selectedCompound
+                  ? selectedCompound.defaultDoseUnit === targetDoseUnit
+                    ? `Recommended for ${selectedCompound.shortName}: ${targetDose}${targetDoseUnit}`
+                    : `Adjusted from ${selectedCompound.shortName} defaults`
+                  : `Recommended for ${selectedShortName}: ${targetDose}${targetDoseUnit}`}
               </div>
             </div>
 
@@ -320,6 +421,7 @@ export default function InventoryPanel() {
           ) : (
             sortedVials.map((vial) => {
               const compound = getCompoundById(vial.compoundId);
+              const libraryEntry = getLibraryEntryById(vial.compoundId);
               const color = compoundColor(vial.compoundId);
               const fillRatio = Math.min(1, Math.max(0, vial.estimatedRemainingMg / vial.vialAmountMg));
               const unitsPerDefaultDose = vial.defaultDoseUnit === "mg"
@@ -361,7 +463,7 @@ export default function InventoryPanel() {
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <div className="text-lg font-medium text-foreground">{vial.label}</div>
-                      <div className="mt-1 text-sm text-muted-foreground/64">{compound?.name}</div>
+                      <div className="mt-1 text-sm text-muted-foreground/64">{compound?.name ?? libraryEntry?.name ?? selectedDisplayName}</div>
                     </div>
                     <div
                       className="rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.18em]"

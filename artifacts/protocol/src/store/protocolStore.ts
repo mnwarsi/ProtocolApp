@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { DoseUnit, FrequencyKey } from "@/data/compounds";
 import { getCompoundById } from "@/data/compounds";
+import { getLibraryEntryById } from "@/data/library";
 import { calculate, type ReconstitutionResult } from "@/lib/mathEngine";
 import {
   deriveKey,
@@ -336,11 +337,12 @@ function normalizeDoseToMg(dose: number, doseUnit: DoseUnit): number {
 
 function createInventoryLabel(compoundId: string, reconstitutedAt: string): string {
   const compound = getCompoundById(compoundId);
+  const libraryEntry = getLibraryEntryById(compoundId);
   const shortDate = new Date(reconstitutedAt).toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
   });
-  return `${compound?.shortName ?? "Vial"} · ${shortDate}`;
+  return `${compound?.shortName ?? libraryEntry?.shortName ?? "Vial"} · ${shortDate}`;
 }
 
 function syncLegacyProtocolFields(protocol: ActiveProtocol): ActiveProtocol {
